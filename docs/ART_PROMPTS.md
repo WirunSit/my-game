@@ -156,22 +156,53 @@ STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting 
 ```
 
 ## 09 — บอส 5 ตัว (ไฟล์ละ 1 ตัว)
-**ขนาด:** 1024×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 01 | บอสทุกตัว**หันหน้าไปทางซ้าย** (หันเข้าหาผู้เล่น)
+ทุกภาพ: **ขนาด** 1024×1024 | **พื้นหลัง** โปร่งใส | แนบภาพ 01 | บอส**หันหน้าไปทางซ้าย** (หันเข้าหาผู้เล่น)
+คัดลอกพรอมต์ไปได้ทั้งก้อน ไม่ต้องแก้อะไร
 
-ใช้พรอมต์ตั้งต้นนี้ แล้วแทนที่ `[BOSS]` ด้วยคำบรรยายบอสด้านล่าง:
+### 09a — Mixtron ราชาสารผสม (โลก 1) 🟠
+**ไฟล์:** `09a_boss_mixtron.png`
 ```
 A single large boss monster for a kids' artillery game, full body, SIDE VIEW facing LEFT, on a transparent background, centered with empty space around it. It should look about 3 times taller than the chibi characters in the attached image. Funny and a little scary, not gory.
-[BOSS]
+"Mixtron, King of Mixtures": a big round glass flask creature with stubby legs, filled with swirling layers of colorful liquids (oil, water, sand), wearing a small crown, angry eyes on the glass, glass tube arms.
 Match the art style of the attached image exactly.
 STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
 ```
-| ไฟล์ | ลำดับ | คำบรรยาย `[BOSS]` |
-|---|---|---|
-| `09a_boss_mixtron.png` | 🟠 | `"Mixtron, King of Mixtures": a big round glass flask creature with stubby legs, filled with swirling layers of colorful liquids (oil, water, sand), wearing a small crown, angry eyes on the glass, glass tube arms.` |
-| `09b_boss_amoebox.png` | 🟢 | `"Amoebox": a giant wobbly translucent green amoeba blob with a visible purple nucleus inside, pseudopod arms reaching out, one big eye and a wide grin.` |
-| `09c_boss_venomroot.png` | 🟢 | `"Venomroot": a giant carnivorous tree with a huge mouth full of leafy teeth, twisting root legs, vine arms, and a big venus flytrap flower on its head.` |
-| `09d_boss_magmadon.png` | 🟢 | `"Magmadon": a chubby lava dragon made of dark volcanic rock with glowing orange lava cracks, small wings, steam puffing from its nose, a thermometer-shaped tail tip.` |
-| `09e_boss_stormlord.png` | 🟢 | `"Stormlord": a big angry dark storm cloud creature with a grumpy face, lightning-bolt arms, a swirling small tornado for a lower body, rain falling from its edges.` |
+
+### 09b — Amoebox อะมีบายักษ์ (โลก 2) 🟢
+**ไฟล์:** `09b_boss_amoebox.png`
+```
+A single large boss monster for a kids' artillery game, full body, SIDE VIEW facing LEFT, on a transparent background, centered with empty space around it. It should look about 3 times taller than the chibi characters in the attached image. Funny and a little scary, not gory.
+"Amoebox": a giant wobbly translucent green amoeba blob with a visible purple nucleus inside, pseudopod arms reaching out, one big eye and a wide grin.
+Match the art style of the attached image exactly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+
+### 09c — Venomroot ต้นไม้กินคน (โลก 3) 🟢
+**ไฟล์:** `09c_boss_venomroot.png`
+```
+A single large boss monster for a kids' artillery game, full body, SIDE VIEW facing LEFT, on a transparent background, centered with empty space around it. It should look about 3 times taller than the chibi characters in the attached image. Funny and a little scary, not gory.
+"Venomroot": a giant carnivorous tree with a huge mouth full of leafy teeth, twisting root legs, vine arms, and a big venus flytrap flower on its head.
+Match the art style of the attached image exactly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+
+### 09d — Magmadon มังกรลาวา (โลก 4) 🟢
+**ไฟล์:** `09d_boss_magmadon.png`
+```
+A single large boss monster for a kids' artillery game, full body, SIDE VIEW facing LEFT, on a transparent background, centered with empty space around it. It should look about 3 times taller than the chibi characters in the attached image. Funny and a little scary, not gory.
+"Magmadon": a chubby lava dragon made of dark volcanic rock with glowing orange lava cracks, small wings, steam puffing from its nose, a thermometer-shaped tail tip.
+Match the art style of the attached image exactly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+
+### 09e — Stormlord เจ้าพายุ (โลก 5) 🟢
+**ไฟล์:** `09e_boss_stormlord.png`
+```
+A single large boss monster for a kids' artillery game, full body, SIDE VIEW facing LEFT, on a transparent background, centered with empty space around it. It should look about 3 times taller than the chibi characters in the attached image. Funny and a little scary, not gory.
+"Stormlord": a big angry dark storm cloud creature with a grumpy face, lightning-bolt arms, a swirling small tornado for a lower body, rain falling from its edges.
+Match the art style of the attached image exactly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
 
 ## 10 — ลูกน้องบอส 🟠
 **ไฟล์:** `10_minions.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 01
@@ -187,24 +218,71 @@ STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting 
 ```
 
 ## 11 — ฉากหลัง (ไฟล์ละ 1 ฉาก)
-**ขนาด:** 1536×1024 | **พื้นหลัง:** ไม่โปร่งใส (เป็นภาพเต็มกรอบ) | แนบภาพ 01
+ทุกภาพ: **ขนาด** 1536×1024 | **พื้นหลัง** ไม่โปร่งใส (เป็นภาพเต็มกรอบ) | แนบภาพ 01
+คัดลอกพรอมต์ไปได้ทั้งก้อน ไม่ต้องแก้อะไร
 
-พรอมต์ตั้งต้น แทนที่ `[SCENE]`:
+### 11a — ห้องแล็บเคมี (โลก 1) 🟠
+**ไฟล์:** `11a_bg_world1_lab.png`
 ```
 A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
-[SCENE]
+A giant cartoon chemistry laboratory: huge shelves of colorful flasks and beakers in the distance, floating bubbles, soft purple-blue lighting.
 Match the art style of the attached image exactly.
 STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
 ```
-| ไฟล์ | ลำดับ | คำบรรยาย `[SCENE]` |
-|---|---|---|
-| `11a_bg_world1_lab.png` | 🟠 | `A giant cartoon chemistry laboratory: huge shelves of colorful flasks and beakers in the distance, floating bubbles, soft purple-blue lighting.` |
-| `11b_bg_world2_cell.png` | 🟢 | `Inside a giant living cell seen through a microscope: soft pink-green watery world, floating organelles and round cells in the distance, light rays.` |
-| `11c_bg_world3_forest.png` | 🟢 | `A magical giant-plant forest: huge leaves and flowers, sunbeams through the canopy, floating pollen sparkles, green and yellow tones.` |
-| `11d_bg_world4_volcano.png` | 🟢 | `A cartoon volcano land: erupting volcanoes in the distance, orange sky, rising heat waves, steam vents.` |
-| `11e_bg_world5_sky.png` | 🟢 | `High in the sky among layers of clouds: a storm with lightning in the distance on one side, a rainbow on the other side, deep blue sky with visible atmosphere layers.` |
-| `11f_bg_menu.png` | 🟢 | `A cheerful cartoon Thai school courtyard with a flagpole, a school building and trees, bright blue sky, used as a main menu background.` |
-| `11g_bg_pvp_arena.png` | 🔴 | `A fun outdoor battle arena on floating islands at sunset, colorful flags and banners on poles in the distance, warm orange-pink sky.` |
+
+### 11b — ภายในเซลล์ (โลก 2) 🟢
+**ไฟล์:** `11b_bg_world2_cell.png`
+```
+A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
+Inside a giant living cell seen through a microscope: soft pink-green watery world, floating organelles and round cells in the distance, light rays.
+Match the art style of the attached image exactly.
+STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
+```
+
+### 11c — ป่าพืชยักษ์ (โลก 3) 🟢
+**ไฟล์:** `11c_bg_world3_forest.png`
+```
+A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
+A magical giant-plant forest: huge leaves and flowers, sunbeams through the canopy, floating pollen sparkles, green and yellow tones.
+Match the art style of the attached image exactly.
+STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
+```
+
+### 11d — ดินแดนภูเขาไฟ (โลก 4) 🟢
+**ไฟล์:** `11d_bg_world4_volcano.png`
+```
+A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
+A cartoon volcano land: erupting volcanoes in the distance, orange sky, rising heat waves, steam vents.
+Match the art style of the attached image exactly.
+STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
+```
+
+### 11e — บนท้องฟ้า (โลก 5) 🟢
+**ไฟล์:** `11e_bg_world5_sky.png`
+```
+A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
+High in the sky among layers of clouds: a storm with lightning in the distance on one side, a rainbow on the other side, deep blue sky with visible atmosphere layers.
+Match the art style of the attached image exactly.
+STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
+```
+
+### 11f — หน้าเมนู 🟢
+**ไฟล์:** `11f_bg_menu.png`
+```
+A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
+A cheerful cartoon Thai school courtyard with a flagpole, a school building and trees, bright blue sky, used as a main menu background.
+Match the art style of the attached image exactly.
+STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
+```
+
+### 11g — สนาม PvP 🔴
+**ไฟล์:** `11g_bg_pvp_arena.png`
+```
+A wide 2D side-scrolling game background, full frame, no characters, no creatures, no foreground ground platform (the playable ground will be added on top later). Distant scenery and sky only, with the lower 35% showing soft, slightly blurred far-away landscape. Calm enough that characters stand out in front of it.
+A fun outdoor battle arena on floating islands at sunset, colorful flags and banners on poles in the distance, warm orange-pink sky.
+Match the art style of the attached image exactly.
+STYLE: cute 2D cartoon game background art, bright saturated colors, soft painterly shading, bold simple shapes, friendly and playful, suitable for 12-year-old students. No text, no letters, no watermark, no signature, no borders.
+```
 
 ## 12 — ลายพื้นดิน 🔴
 **ไฟล์:** `12_terrain.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** ไม่โปร่งใส
