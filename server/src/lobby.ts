@@ -17,6 +17,8 @@ interface Client {
   room: PvpRoom | null;
   /** Group allowed to play together (classroom id once accounts exist; null = anyone) */
   group: string | null;
+  /** Messages are handled one after another, in the order they arrived */
+  queue: Promise<void>;
 }
 
 export interface LobbyOptions {
@@ -44,14 +46,21 @@ export class Lobby {
 
   connect(conn: Connection): string {
     const id = `p${this.nextId++}`;
-    this.clients.set(id, { id, conn, hello: null, room: null, group: null });
+    this.clients.set(id, { id, conn, hello: null, room: null, group: null, queue: Promise.resolve() });
     this.send(id, { t: 'welcome', id });
     return id;
   }
 
-  async receive(id: string, text: string) {
+  /** A message from a player. Waits for that player's earlier messages first ("hello" checks the database). */
+  receive(id: string, text: string): Promise<void> {
     const client = this.clients.get(id);
-    if (!client) return;
+    if (!client) return Promise.resolve();
+    client.queue = client.queue.then(() => this.process(client, text)).catch((e) => console.error(e));
+    return client.queue;
+  }
+
+  private async process(client: Client, text: string) {
+    const id = client.id;
     let msg: ClientMessage;
     try {
       msg = JSON.parse(text) as ClientMessage;

@@ -11,7 +11,8 @@ let store: Store;
 let base = '';
 
 before(async () => {
-  store = await Store.open(':memory:');
+  // SQLite by default; api.pglite.test.ts runs the same tests on PostgreSQL (PGlite)
+  store = await Store.open(process.env.TEST_DB ?? ':memory:');
   const api = createApi(store, { teacherSignupCode: 'school-2569' });
   server = createServer(async (req, res) => {
     if (!(await api(req, res))) {

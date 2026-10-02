@@ -82,7 +82,7 @@ CREATE INDEX IF NOT EXISTS students_classroom ON students (classroom_id);
 
 /** Open the database named by DATABASE_URL, or a SQLite file (`:memory:` for tests) */
 export async function openDb(target = process.env.DATABASE_URL ?? process.env.SQLITE_FILE ?? 'server/data/sciboom.db'): Promise<Db> {
-  const db = /^postgres(ql)?:\/\//.test(target) ? await openPostgres(target) : await openSqlite(target);
+  const db = /^postgres(ql)?:\/\//.test(target) ? await openPostgres(target) : target === 'pglite' ? await openPglite() : await openSqlite(target);
   await db.exec(SCHEMA);
   return db;
 }
@@ -127,46 +127,82 @@ async function openSqlite(file: string): Promise<Db> {
   return db;
 }
 
+/** What the Postgres adapter needs from a connection (node-postgres or PGlite) */
+interface PgRunner {
+  query(sql: string, params?: unknown[]): Promise<{ rows: unknown[]; rowCount?: number | null; affectedRows?: number }>;
+}
+
+interface PgBackend {
+  runner: PgRunner;
+  /** Several statements without parameters */
+  exec(sql: string): Promise<void>;
+  /** Run `fn` inside a transaction on its own connection */
+  transaction<T>(fn: (r: PgRunner) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}
+
+/** `?` → `$1, $2, ...` */
+function toPg(q: string): string {
+  let i = 0;
+  return q.replace(/\?/g, () => `$${++i}`);
+}
+
+function postgresDb(backend: PgBackend, runner: PgRunner = backend.runner, inTx = false): Db {
+  const query = (q: string, p: Param[]) => runner.query(toPg(q), p);
+  const db: Db = {
+    kind: 'postgres',
+    all: async <T>(q: string, p: Param[] = []) => (await query(q, p)).rows as T[],
+    get: async <T>(q: string, p: Param[] = []) => (await query(q, p)).rows[0] as T | undefined,
+    run: async (q, p = []) => {
+      const r = await query(q, p);
+      return r.rowCount ?? r.affectedRows ?? 0;
+    },
+    exec: (q) => backend.exec(q),
+    // A transaction gets its own connection, so its queries never mix with other requests
+    tx: (fn) => (inTx ? fn(db) : backend.transaction((r) => fn(postgresDb(backend, r, true)))),
+    close: () => backend.close(),
+  };
+  return db;
+}
+
 async function openPostgres(url: string): Promise<Db> {
   const { default: pg } = await import('pg');
   // BIGINT (int8) comes back as text by default; our numbers are small enough for JS numbers
   pg.types.setTypeParser(20, (v: string) => Number(v));
   const pool = new pg.Pool({ connectionString: url, ssl: /localhost|127\.0\.0\.1/.test(url) ? undefined : { rejectUnauthorized: false }, max: 5 });
-  // `?` → `$1, $2, ...`
-  const toPg = (q: string) => {
-    let i = 0;
-    return q.replace(/\?/g, () => `$${++i}`);
-  };
-  type Runner = Pick<import('pg').Pool, 'query'>;
-  // A transaction gets its own connection, so its queries never mix with other requests
-  const make = (runner: Runner, inTx: boolean): Db => {
-    const query = (q: string, p: Param[]) => runner.query(toPg(q), p);
-    const db: Db = {
-      kind: 'postgres',
-      all: async <T>(q: string, p: Param[] = []) => (await query(q, p)).rows as T[],
-      get: async <T>(q: string, p: Param[] = []) => (await query(q, p)).rows[0] as T | undefined,
-      run: async (q, p = []) => (await query(q, p)).rowCount ?? 0,
-      exec: async (q) => {
-        await runner.query(q);
-      },
-      tx: async (fn) => {
-        if (inTx) return fn(db);
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          const out = await fn(make(client, true));
-          await client.query('COMMIT');
-          return out;
-        } catch (e) {
-          await client.query('ROLLBACK');
-          throw e;
-        } finally {
-          client.release();
-        }
-      },
-      close: () => pool.end(),
-    };
-    return db;
-  };
-  return make(pool, false);
+  return postgresDb({
+    runner: pool,
+    exec: async (q) => {
+      await pool.query(q);
+    },
+    transaction: async (fn) => {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const out = await fn(client);
+        await client.query('COMMIT');
+        return out;
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+    close: () => pool.end(),
+  });
+}
+
+/** Tests only: real PostgreSQL SQL, running in-process (PGlite), so the Postgres path is checked without a server */
+async function openPglite(): Promise<Db> {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const pglite = new PGlite();
+  return postgresDb({
+    runner: pglite,
+    exec: async (q) => {
+      await pglite.exec(q);
+    },
+    transaction: (fn) => pglite.transaction((tx) => fn(tx)),
+    close: () => pglite.close(),
+  });
 }

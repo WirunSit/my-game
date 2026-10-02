@@ -9,6 +9,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
