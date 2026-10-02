@@ -13,6 +13,7 @@
 5. **ตรวจภาพก่อนใช้:** ทุกชิ้นต้องแยกห่างกัน ไม่ทับกัน และไม่มีตัวหนังสือแปลก ๆ ถ้าไม่ผ่านให้สั่งสร้างใหม่
 6. **ตั้งชื่อไฟล์ตามรหัสภาพ** (เช่น `01.png`, `09a.png`, `11g.png`) แล้วอัปโหลดเข้า `~/my-game/art/raw/`
    - วิธีอัปโหลดใน Cloud Shell: กดปุ่ม ⋮ (มุมขวาบนของ Terminal) → **Upload** → เลือกไฟล์ → ช่องปลายทางพิมพ์ `/home/wirun_0558/my-game/art/raw/`
+   - บนคอมพิวเตอร์ Windows: คัดลอกไฟล์ไปไว้ในโฟลเดอร์ `art/raw/` ของโปรเจค (เช่น `D:\sciboom\art\raw\`) แล้วรัน `npm run art`
    - **ไม่ต้องรอให้ครบทุกภาพ** ทำเสร็จภาพไหนก็ส่งภาพนั้นมาได้เลย
 
 ## ลำดับความสำคัญ
@@ -21,7 +22,7 @@
 |---|---|---|
 | 🔴 ทำก่อน | 01, 06, 07, 08, 11g (ฉาก PvP), 12 | ขั้น 1 ระบบยิง |
 | 🟠 ถัดไป | 09a (บอสโลก 1), 10, 11a, 13 | ขั้น 2 ด่านบอส |
-| 🟢 ทีหลัง | 02, 03, 04, 05, 09b–e, 11b–f | ขั้น 3–7 |
+| 🟢 ทีหลัง | 02, 03, 03c, 03d, 04, 05, 09b–e, 11b–f | ขั้น 3–7 |
 
 ---
 
@@ -68,6 +69,36 @@ Same height and scale as the attached image. Match the art style of the attached
 STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
 ```
 > ถ้าอยากได้ชุดเพิ่ม ให้ใช้พรอมต์เดิมแต่เปลี่ยน 3 ชุดเป็น: ชุดนักบินอวกาศ (astronaut suit), เสื้อกันฝนสีเหลือง (yellow raincoat and rain boots), ชุดนินจา (ninja outfit) แล้วตั้งชื่อไฟล์ว่า `03b.png`
+
+## 03c — ท่าเจ็บและท่าดีใจของชุด (ชาย) 🟢
+**ไฟล์:** `03c.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 02 และ 03
+```
+Using the exact same boy character and the exact same three outfits from the attached images, create a sprite sheet with 2 rows and 3 columns (6 full-body poses), large empty space between each, none overlapping, on a transparent background. Do NOT add hats, glasses, or anything on the back.
+Top row = HURT pose, exactly like the boy's hurt pose in the attached image: side view facing right, leaning back, eyes squeezed shut (X-shaped eyes), small stars around his head.
+Bottom row = VICTORY pose, exactly like the boy's victory pose in the attached image: side view facing right, jumping with one fist raised, big happy open-mouth smile.
+Columns, left to right, in both rows:
+1. Scientist outfit: white lab coat over a light blue shirt, dark pants.
+2. Jungle explorer outfit: khaki shirt with pockets, khaki shorts, brown boots.
+3. Firefighter outfit: red and yellow fireproof jacket and pants with reflective stripes.
+Same height and scale as the attached images. Match the art style of the attached images exactly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+
+## 03d — ท่าเจ็บและท่าดีใจของชุด (หญิง) 🟢
+**ไฟล์:** `03d.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 02 และ 03
+```
+Using the exact same girl character and the exact same three outfits from the attached images, create a sprite sheet with 2 rows and 3 columns (6 full-body poses), large empty space between each, none overlapping, on a transparent background. Do NOT add hats, glasses, or anything on the back.
+Top row = HURT pose, exactly like the girl's hurt pose in the attached image: side view facing right, leaning back, eyes squeezed shut (X-shaped eyes), small stars around her head.
+Bottom row = VICTORY pose, exactly like the girl's victory pose in the attached image: side view facing right, jumping with one fist raised, big happy smile.
+Columns, left to right, in both rows:
+1. Scientist outfit: white lab coat over a light blue shirt, dark pants.
+2. Jungle explorer outfit: khaki shirt with pockets, khaki shorts, brown boots.
+3. Firefighter outfit: red and yellow fireproof jacket and pants with reflective stripes.
+Keep her short bob haircut and small hair clip. Same height and scale as the attached images. Match the art style of the attached images exactly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Big head, small body (about 2.5 heads tall). Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting, no cast shadows on the ground. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+> เมื่อเพิ่ม `03c.png` / `03d.png` ไว้ใน `art/raw/` แล้วรัน `npm run art` เกมจะใช้ท่าใหม่ทันที (ระหว่างที่ยังไม่มีภาพ ตัวละครที่ใส่ชุดจะกะพริบและสั่นตอนโดนยิงแทน)
+> ถ้าหมวกหรือแว่นวางไม่ตรงกับภาพใหม่ ให้เปิด `npm run dev` แล้วรัน `npm run costumes -w tools` จากนั้นดูภาพใน `art/debug/costumes/` (ปรับตัวเลขได้ใน `client/src/game/Costume.ts`)
 
 ## 04 — หมวก 🟢
 **ไฟล์:** `04.png` | **ขนาด:** 1024×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 01

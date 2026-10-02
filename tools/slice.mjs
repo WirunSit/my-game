@@ -25,6 +25,15 @@ const SHEETS = [
     file: '03.png', dir: 'outfits', maxSize: 320,
     names: ['boy_lab', 'boy_explorer', 'boy_firefighter', 'girl_lab', 'girl_explorer', 'girl_firefighter'],
   },
+  // Hurt (top row) and victory (bottom row) poses for each suit — optional, the game falls back to the side picture
+  {
+    file: '03c.png', dir: 'outfits', maxSize: 320,
+    names: ['boy_lab_hurt', 'boy_explorer_hurt', 'boy_firefighter_hurt', 'boy_lab_win', 'boy_explorer_win', 'boy_firefighter_win'],
+  },
+  {
+    file: '03d.png', dir: 'outfits', maxSize: 320,
+    names: ['girl_lab_hurt', 'girl_explorer_hurt', 'girl_firefighter_hurt', 'girl_lab_win', 'girl_explorer_win', 'girl_firefighter_win'],
+  },
   {
     file: '04.png', dir: 'hats', maxSize: 160,
     names: ['grad_cap', 'beaker_helmet', 'leaf_crown', 'flame_hat', 'rain_cloud', 'wizard_hat', 'cat_ears', 'pith_helmet', 'propeller_cap'],

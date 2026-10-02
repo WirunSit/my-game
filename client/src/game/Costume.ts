@@ -123,7 +123,8 @@ export class Costume {
     this.posed = native;
     const frame = this.scene.textures.getFrame(key);
     this.body.setTexture(key).setScale(this.height / frame.height);
-    const anchors = ANCHORS[key];
+    // New suit pose art (e.g. outfits/boy_lab_hurt) borrows the school-uniform anchors of the same pose until measured
+    const anchors = ANCHORS[key] ?? ANCHORS[`characters/${this.character}_${this.pose}`];
     this.place(this.hat, this.outfit.hat, anchors, 'head', frame);
     this.place(this.face, this.outfit.face, anchors, 'eye', frame);
     this.place(this.back, this.outfit.back, anchors, 'back', frame);
