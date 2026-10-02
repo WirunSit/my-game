@@ -41,6 +41,12 @@ export class WorldMapScene extends Phaser.Scene {
     this.worldOne(save.stars);
     this.otherWorlds();
 
+    addTextButton(this, GAME_WIDTH - 410, GAME_HEIGHT - 48, 'ห้องแต่งตัว', () => this.scene.start('Wardrobe', { from: 'WorldMap' }), {
+      width: 240,
+      height: 60,
+      fontSize: 24,
+      color: 0x8a5cf6,
+    });
     addTextButton(this, GAME_WIDTH - 150, GAME_HEIGHT - 48, 'คลังอาวุธ', () => this.scene.start('Inventory', { from: 'WorldMap' }), {
       width: 240,
       height: 60,

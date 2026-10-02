@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { QuizDeck, RARITY_NAMES, WORLD_HEIGHT, WORLD_WIDTH, addExp, planShot, rollDrop, stageRewards, weaponDef, weaponStats, type Vec } from '@sciboom/shared';
+import { QuizDeck, RARITY_NAMES, WORLD_HEIGHT, WORLD_WIDTH, addExp, newlyUnlocked, planShot, rollDrop, stageRewards, weaponDef, weaponStats, type Vec } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
 import { Crate } from '../game/Crate';
@@ -295,6 +295,13 @@ export class StageScene extends ArenaScene {
     });
     const rewardLines = [`EXP +${rewards.exp} · เหรียญ +${rewards.coins} · ผลึกความรู้ +${crystals}`];
     if (levelsGained > 0) rewardLines.push(`เลเวลอัป! ตอนนี้ Lv ${saved.level}`);
+    // New wardrobe items from the level-up: tell the player and offer a shortcut
+    const unlocked = newlyUnlocked(saved.level - levelsGained, saved.level);
+    if (unlocked.length > 0) {
+      const names = unlocked.slice(0, 2).map((c) => c.name).join(', ');
+      rewardLines.push(`ปลดล็อกของแต่งใหม่: ${names}${unlocked.length > 2 ? ' และอื่น ๆ' : ''}`);
+    }
+    const wardrobeButton = { label: 'ห้องแต่งตัว', onClick: () => this.scene.start('Wardrobe', { from: 'WorldMap' }), color: 0xe0559a };
 
     if (!won) {
       this.enemy.celebrate();
@@ -304,6 +311,7 @@ export class StageScene extends ArenaScene {
         [
           { label: 'ลองอีกครั้ง', onClick: restart },
           { label: 'คลังอาวุธ', onClick: () => this.scene.start('Inventory'), color: 0x8a5cf6 },
+          ...(unlocked.length > 0 ? [wardrobeButton] : []),
           { label: 'แผนที่', onClick: toMap, color: 0x3a8dde },
         ],
         '#ff8866',
@@ -318,6 +326,7 @@ export class StageScene extends ArenaScene {
     if (next) buttons.push({ label: 'ด่านต่อไป', onClick: () => this.scene.start('Stage', { stageId: next.id }) });
     buttons.push({ label: 'เล่นอีกครั้ง', onClick: restart, color: next ? 0x8a5cf6 : undefined });
     buttons.push({ label: 'คลังอาวุธ', onClick: () => this.scene.start('Inventory'), color: 0x2fbf5b });
+    if (unlocked.length > 0) buttons.push(wardrobeButton);
     buttons.push({ label: 'แผนที่', onClick: toMap, color: 0x3a8dde });
     // First line left empty: the star images go there
     this.showResult(this.stage.isBoss ? 'ปราบบอสสำเร็จ!' : 'ผ่านด่าน!', ['', `ตอบถูก ${correct}/${asked} ข้อ`, ...rewardLines], buttons);

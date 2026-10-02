@@ -6,6 +6,7 @@ import { InventoryScene } from './scenes/InventoryScene';
 import { MenuScene } from './scenes/MenuScene';
 import { PreloadScene } from './scenes/PreloadScene';
 import { StageScene } from './scenes/StageScene';
+import { WardrobeScene } from './scenes/WardrobeScene';
 import { WorldMapScene } from './scenes/WorldMapScene';
 
 /**
@@ -49,7 +50,7 @@ async function start() {
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     input: { activePointers: 3 }, // multi-touch: move + aim + fire on phones
-    scene: [PreloadScene, MenuScene, WorldMapScene, StageScene, InventoryScene, BattleScene, CostumeSheetScene],
+    scene: [PreloadScene, MenuScene, WorldMapScene, StageScene, InventoryScene, WardrobeScene, BattleScene, CostumeSheetScene],
   });
   // Let the automated playtest (tools/playtest.mjs) peek at the game while developing
   if (import.meta.env.DEV) (window as unknown as { game: Phaser.Game }).game = game;
