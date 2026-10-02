@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { WORLD_HEIGHT, type ShotTarget, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
+import { sfx } from '../audio/Sound';
 import { DEPTH, FONT_FAMILY, TEXT_STROKE } from '../config';
 import type { Combatant } from './Combatant';
 
@@ -184,6 +185,7 @@ export class Enemy implements Combatant {
   /** Glowing aura while charging an ultimate */
   startCharge() {
     if (this.chargeFx) return;
+    sfx.charge();
     this.chargeFx = this.scene.add.image(0, -this.config.height / 2, 'fx/fx_spark').setAlpha(0.8);
     this.chargeFx.setScale((this.config.height * 1.3) / this.chargeFx.height);
     this.root.addAt(this.chargeFx, 0);

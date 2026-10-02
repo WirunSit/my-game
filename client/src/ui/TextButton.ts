@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { sfx } from '../audio/Sound';
 import { FONT_FAMILY, TEXT_STROKE } from '../config';
 
 export interface TextButtonOptions {
@@ -46,6 +47,7 @@ export function addTextButton(
     button.on('pointerout', () => button.setScale(1));
     button.on('pointerup', () => {
       button.setScale(1);
+      sfx.click();
       onClick();
     });
   }

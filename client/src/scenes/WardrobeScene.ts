@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { startMusic } from '../audio/Sound';
 import {
   COSMETIC_CATALOG,
   COSMETIC_SLOTS,
@@ -63,6 +64,7 @@ export class WardrobeScene extends Phaser.Scene {
   }
 
   create(data: WardrobeData) {
+    startMusic('menu');
     drawArtBackground(this, 'backgrounds/menu_school', GAME_WIDTH, 0);
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0b0c1f, 0.55).setOrigin(0);
     this.add.text(GAME_WIDTH / 2, 40, 'ห้องแต่งตัว', text(40, '#ffcc33')).setOrigin(0.5);

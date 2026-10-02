@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { startMusic } from '../audio/Sound';
 import { ROOM_CODE_LENGTH, nicknameProblem, weaponDef, type ServerMessage } from '@sciboom/shared';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
@@ -32,6 +33,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   create() {
+    startMusic('menu');
     this.net = null;
     this.leaving = false;
     this.panel = [];

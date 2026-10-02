@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { startMusic } from '../audio/Sound';
 import { PIN_LENGTH, defaultNickname } from '@sciboom/shared';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
@@ -27,6 +28,7 @@ export class LoginScene extends Phaser.Scene {
   }
 
   create() {
+    startMusic('menu');
     this.busy = false;
     drawArtBackground(this, 'backgrounds/menu_school', GAME_WIDTH, 0);
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0b0c1f, 0.5).setOrigin(0);

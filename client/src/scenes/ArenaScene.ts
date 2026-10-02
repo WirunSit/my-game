@@ -41,6 +41,7 @@ import {
   type Vec,
   type WeaponStats,
 } from '@sciboom/shared';
+import { sfx, startMusic } from '../audio/Sound';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
 import type { Combatant } from '../game/Combatant';
@@ -49,6 +50,7 @@ import { TerrainView } from '../game/TerrainView';
 import { Controls } from '../ui/Controls';
 import { Hud } from '../ui/Hud';
 import { SkillBar, type SlotState } from '../ui/SkillBar';
+import { addSoundToggle } from '../ui/SoundToggle';
 import { addTextButton } from '../ui/TextButton';
 import { loadSave } from '../save';
 
@@ -198,6 +200,8 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     back.on('pointerup', () => this.leave(menuScene));
+    addSoundToggle(this, GAME_WIDTH / 2 + 245, 30, 32);
+    startMusic('battle');
   }
 
   /** Hook: leaving the match from the ☰ button (online games tell the server first) */
@@ -284,6 +288,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.walkLeft = WALK_PER_TURN;
     this.power = 0;
     f.setActive(true);
+    sfx.turn();
     this.hud.showTimer(true);
     this.hud.setAngle(f.angle);
     this.hud.setPower(0, f.lastPower);
@@ -379,7 +384,10 @@ export abstract class ArenaScene extends Phaser.Scene {
       return;
     }
     if (isInstantSkill(slot)) this.useInstantSkill(f, slot);
-    else sk.armed = slot;
+    else {
+      sk.armed = slot;
+      sfx.skill();
+    }
     this.refreshSkills();
   }
 
@@ -390,6 +398,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   }
 
   protected showInstantSkill(f: Fighter, slot: 'heal' | 'stealth') {
+    if (slot === 'heal') sfx.heal();
+    else sfx.skill();
     if (slot === 'heal') {
       f.heal(HEAL_AMOUNT);
       this.floatText(f.x, f.y - f.height - 30, `+${HEAL_AMOUNT}`, '#7dff8a');
@@ -470,6 +480,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.phase = 'flying';
     this.camTarget = null;
     this.cameras.main.stopFollow();
+    if (timeline.flights[0]?.look === 'plane') sfx.skill();
+    else sfx.fire();
     const sprites = timeline.flights.map((fl) => {
       const key = fl.look === 'plane' ? 'fx/paper_plane' : fl.look === 'bolt' ? 'fx/proj_lightning' : `fx/${projectile}`;
       const img = this.add.image(fl.path[0].x, fl.path[0].y, key).setOrigin(0.7, 0.5).setDepth(DEPTH.projectile).setVisible(false);
@@ -532,6 +544,7 @@ export abstract class ArenaScene extends Phaser.Scene {
         break;
       case 'teleport':
         (this.byId(e.id) as Fighter).teleportTo(e.x, e.y);
+        sfx.skill();
         this.hud.banner('บินไปแล้ว!', '#bfe8ff');
         break;
       case 'miss':
@@ -540,6 +553,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       case 'heal': {
         const c = this.byId(e.id) as Fighter;
         c.heal(e.amount);
+        sfx.heal();
         this.floatText(c.x, c.y - c.height - 30, `+${e.amount}`, '#7dff8a');
         this.hud.refreshHp();
         break;
@@ -551,6 +565,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     const boom = this.add.sprite(at.x, at.y, 'fx/explosion_0').setDepth(DEPTH.fx);
     boom.setScale((radius * 2.8) / 256);
     boom.play('explosion');
+    sfx.explode(radius);
+    if (hits.some((h) => h.id !== pb.shooter.id)) sfx.hit();
     this.cameras.main.shake(220, 0.008);
     this.terrainView.carve(at.x, at.y, radius);
     this.hud.drawMinimap(this.terrain);

@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import type { QuizItem } from '@sciboom/shared';
+import { sfx } from '../audio/Sound';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { wrapThai } from './thaiWrap';
 
@@ -144,6 +145,8 @@ export function showQuiz(scene: Phaser.Scene, item: QuizItem, opts: { title: str
       keys.off('keydown', onKey);
       const correct = chosen === item.correctIndex;
       const timeMs = scene.time.now - started;
+      if (correct) sfx.correct();
+      else sfx.wrong();
       buttons.forEach((b, i) => {
         b.container.disableInteractive();
         b.draw(i === item.correctIndex ? COLORS.right : i === chosen ? COLORS.wrong : COLORS.dim);

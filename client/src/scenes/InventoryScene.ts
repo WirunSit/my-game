@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { startMusic } from '../audio/Sound';
 import {
   FUSE_COUNT,
   MAX_LEVEL,
@@ -62,6 +63,7 @@ export class InventoryScene extends Phaser.Scene {
   }
 
   create(data: InventoryData) {
+    startMusic('menu');
     drawArtBackground(this, 'backgrounds/world1_lab', GAME_WIDTH, 0);
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0b0c1f, 0.6).setOrigin(0);
     this.add.text(GAME_WIDTH / 2, 40, 'คลังอาวุธ', text(40, '#ffcc33')).setOrigin(0.5);

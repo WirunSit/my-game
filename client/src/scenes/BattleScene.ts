@@ -2,6 +2,7 @@ import { WORLD_HEIGHT, WORLD_WIDTH, baseWeaponStats } from '@sciboom/shared';
 import type { Combatant } from '../game/Combatant';
 import { Fighter, plainLook } from '../game/Fighter';
 import { loadSave } from '../save';
+import { sfx } from '../audio/Sound';
 import { ArenaScene } from './ArenaScene';
 
 /** Two players taking turns on one device. */
@@ -39,6 +40,7 @@ export class BattleScene extends ArenaScene {
   }
 
   protected onMatchEnd(winner: Combatant | null) {
+    sfx.win();
     if (winner) {
       winner.celebrate();
       this.focusOn(winner);

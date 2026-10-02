@@ -5,6 +5,7 @@ import { Fighter } from '../game/Fighter';
 import type { Net } from '../net/Net';
 import { updateSave } from '../save';
 import { showQuiz, type QuizResult } from '../ui/QuizPopup';
+import { sfx } from '../audio/Sound';
 import { ArenaScene } from './ArenaScene';
 
 type Start = Extract<ServerMessage, { t: 'start' }>;
@@ -284,6 +285,8 @@ export class OnlineBattleScene extends ArenaScene {
 
   protected onMatchEnd(winner: Combatant | null) {
     const won = winner === this.me;
+    if (won) sfx.win();
+    else sfx.lose();
     const rewards = pvpRewards(won);
     let levelUp = 0;
     const saved = updateSave((d) => {

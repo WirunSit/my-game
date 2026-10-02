@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { startMusic } from '../audio/Sound';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
 import { STAGES, WORLDS, isUnlocked, type WorldConfig } from '../game/stages';
@@ -41,6 +42,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   create() {
+    startMusic('menu');
     const save = loadSave();
     const w = WORLDS[this.world - 1];
     drawArtBackground(this, w.background, GAME_WIDTH, 0);

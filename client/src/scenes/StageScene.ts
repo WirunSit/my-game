@@ -20,6 +20,7 @@ import {
   type Hit,
   type Vec,
 } from '@sciboom/shared';
+import { sfx } from '../audio/Sound';
 import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
 import { Crate } from '../game/Crate';
@@ -496,7 +497,9 @@ export class StageScene extends ArenaScene {
     }
     const wardrobeButton = { label: 'ห้องแต่งตัว', onClick: () => this.scene.start('Wardrobe', { from: 'WorldMap' }), color: 0xe0559a };
 
+    if (levelsGained > 0) this.time.delayedCall(1200, () => sfx.levelUp());
     if (!won) {
+      sfx.lose();
       this.enemy.celebrate();
       this.showResult(
         'แพ้แล้ว ลองใหม่นะ!',
@@ -512,6 +515,7 @@ export class StageScene extends ArenaScene {
       return;
     }
 
+    sfx.win();
     this.player.celebrate();
     this.focusOn(this.player);
     const next = nextStage(this.stage.id);
