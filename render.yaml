@@ -1,0 +1,15 @@
+# Render blueprint (https://render.com): New + > Blueprint > pick this repo.
+# See docs/DEPLOY.md for the whole walk-through (Thai).
+services:
+  - type: web
+    name: sciboom
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      # PostgreSQL connection string (e.g. Supabase "Session pooler" URI). Required: without it progress is lost on restart.
+      - key: DATABASE_URL
+        sync: false
+      # Code teachers type to make an account. Leave empty only for a private test.
+      - key: TEACHER_SIGNUP_CODE
+        sync: false
