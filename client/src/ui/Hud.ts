@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { MAX_WIND, type Terrain, type Vec } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
-import type { Fighter } from '../game/Fighter';
+import type { Combatant } from '../game/Combatant';
 
 const textStyle = (size: number, color = '#ffffff'): Phaser.Types.GameObjects.Text.TextStyle => ({
   fontFamily: FONT_FAMILY,
@@ -35,10 +35,11 @@ export class Hud {
   private readonly minimapGround: Phaser.GameObjects.Graphics;
   private readonly minimapDots: Phaser.GameObjects.Graphics;
   private readonly mapScale: number;
+  private statusItems: Phaser.GameObjects.GameObject[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly fighters: Fighter[],
+    private readonly fighters: Combatant[],
     worldWidth: number,
   ) {
     fighters.forEach((f, i) => this.panels.push(this.fighterPanel(f, i === 0 ? 'left' : 'right')));
@@ -86,15 +87,15 @@ export class Hud {
     }
   }
 
-  private fighterPanel(f: Fighter, side: 'left' | 'right'): FighterPanel {
+  private fighterPanel(f: Combatant, side: 'left' | 'right'): FighterPanel {
     const s = this.scene;
     const dir = side === 'left' ? 1 : -1;
     const edge = side === 'left' ? 16 : GAME_WIDTH - 16;
 
     const plate = s.add.graphics();
     plate.fillStyle(0x1b1d3a, 0.6).fillRoundedRect(side === 'left' ? 8 : GAME_WIDTH - 368, 8, 360, 92, 18);
-    const portrait = s.add.image(edge + dir * 40, 96, f.look.portrait).setOrigin(0.5, 1);
-    portrait.setScale(86 / portrait.height);
+    const portrait = s.add.image(edge + dir * 40, 96, f.portraitKey).setOrigin(0.5, 1);
+    portrait.setScale(Math.min(86 / portrait.height, 84 / portrait.width));
     const name = s.add.text(edge + dir * 92, 14, f.name, textStyle(22)).setOrigin(side === 'left' ? 0 : 1, 0);
 
     const frame = s.add.image(edge + dir * 222, 68, 'ui/bar_hp').setDisplaySize(252, 40);
@@ -108,7 +109,7 @@ export class Hud {
     return panel;
   }
 
-  private setHpBar(p: FighterPanel, f: Fighter) {
+  private setHpBar(p: FighterPanel, f: Combatant) {
     const frac = f.hp / f.maxHp;
     p.hpFill.width = p.hpWidth * frac;
     p.hpFill.fillColor = frac > 0.5 ? 0x4cd964 : frac > 0.25 ? 0xffcc00 : 0xff3b30;
@@ -126,6 +127,26 @@ export class Hud {
       if (i === index) this.scene.tweens.add({ targets: p.portrait, y: 90, duration: 300, yoyo: true, repeat: -1 });
       else p.portrait.y = 96;
     });
+  }
+
+  /** Small icons + labels under the left (player) panel, e.g. shield, crystals */
+  setStatus(items: { icon: string; text: string }[]) {
+    this.statusItems.forEach((o) => o.destroy());
+    this.statusItems = [];
+    let x = 20;
+    for (const it of items) {
+      const icon = this.scene.add.image(x, 124, it.icon).setOrigin(0, 0.5);
+      icon.setScale(30 / icon.height);
+      const label = this.scene.add.text(x + icon.displayWidth + 4, 124, it.text, textStyle(17)).setOrigin(0, 0.5);
+      for (const o of [icon, label]) o.setScrollFactor(0).setDepth(DEPTH.hud);
+      this.statusItems.push(icon, label);
+      x += icon.displayWidth + label.width + 18;
+    }
+  }
+
+  /** Hide/show the turn timer (hidden during the computer's turn) */
+  showTimer(visible: boolean) {
+    this.timerText.setVisible(visible);
   }
 
   setTimer(seconds: number) {

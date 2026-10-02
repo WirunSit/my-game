@@ -71,3 +71,51 @@ test('blast damage fades with distance', () => {
   assert.ok(mid > 0 && mid < near);
   assert.equal(far, 0);
 });
+
+// ---- Questions -------------------------------------------------------------
+import { QuizDeck, Rng, planShot, type Question } from './index';
+import { readFileSync } from 'node:fs';
+
+const unit1 = JSON.parse(readFileSync(new URL('../../content/questions/unit1_pure_substances.json', import.meta.url), 'utf8'));
+
+test('quiz deck shuffles choices but keeps the right answer', () => {
+  const deck = new QuizDeck(unit1.questions, new Rng(5));
+  for (let i = 0; i < 40; i++) {
+    const item = deck.next();
+    assert.equal(item.choices[item.correctIndex], item.question.choices[item.question.answer]);
+    assert.equal(new Set(item.choices).size, item.question.choices.length);
+  }
+});
+
+test('quiz deck does not repeat until every question was asked', () => {
+  const deck = new QuizDeck(unit1.questions, new Rng(9));
+  const seen = new Set<string>();
+  for (let i = 0; i < deck.size; i++) seen.add(deck.next().question.id);
+  assert.equal(seen.size, deck.size);
+});
+
+test('a wrongly answered question comes back soon', () => {
+  const deck = new QuizDeck(unit1.questions, new Rng(3));
+  const first = deck.next().question;
+  deck.report(first, false);
+  const upcoming = [deck.next(), deck.next(), deck.next(), deck.next()].map((x) => x.question.id);
+  assert.ok(upcoming.includes(first.id));
+});
+
+test('difficulty filter keeps only easy questions', () => {
+  const deck = new QuizDeck(unit1.questions as Question[], new Rng(1), 1);
+  for (let i = 0; i < 20; i++) assert.equal(deck.next().question.difficulty, 1);
+});
+
+// ---- AI --------------------------------------------------------------------
+test('a perfect-skill AI lands close to its target', () => {
+  const t = Terrain.generate(11);
+  const sx = 1700;
+  const shooterY = t.groundBelow(sx, 0)! - 60;
+  const tx = 400;
+  const target = { id: 'p1', x: tx, y: t.groundBelow(tx, 0)! };
+  const plan = planShot({ x: sx, y: shooterY }, -1, target, 3, t, [target], 'boss', 1, new Rng(1));
+  const r = simulateShot({ x: sx, y: shooterY, angleDeg: plan.angle, facing: -1, power: plan.power, wind: 3 }, t, [target], 'boss');
+  assert.ok(r.impact);
+  assert.ok(Math.abs(r.impact!.x - tx) < 120, `landed at ${r.impact!.x}, target ${tx}`);
+});

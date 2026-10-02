@@ -15,3 +15,12 @@ export const WEAPONS: Record<string, WeaponStats> = {
   starter_cannon: { id: 'starter_cannon', name: 'ปืนใหญ่ฝึกหัด', damage: 260, radius: 55, projectile: 'proj_cannonball' },
   beaker_gun: { id: 'beaker_gun', name: 'ปืนบีกเกอร์', damage: 260, radius: 55, projectile: 'proj_beaker' },
 };
+
+/** Enemy attacks (not collectable) */
+export const ENEMY_WEAPONS: Record<string, WeaponStats> = {
+  slime_spit: { id: 'slime_spit', name: 'น้ำยาพิษ', damage: 140, radius: 45, projectile: 'proj_slime' },
+  big_slime: { id: 'big_slime', name: 'น้ำยาพิษใหญ่', damage: 170, radius: 52, projectile: 'proj_slime' },
+  mixture_bomb: { id: 'mixture_bomb', name: 'ระเบิดสารผสม', damage: 190, radius: 60, projectile: 'proj_beaker' },
+  /** Ultimate: fired 3 times in a spread */
+  atom_storm: { id: 'atom_storm', name: 'พายุอะตอม', damage: 150, radius: 65, projectile: 'proj_atom' },
+};

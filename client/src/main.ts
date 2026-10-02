@@ -3,6 +3,8 @@ import { GAME_HEIGHT, GAME_WIDTH } from './config';
 import { BattleScene } from './scenes/BattleScene';
 import { MenuScene } from './scenes/MenuScene';
 import { PreloadScene } from './scenes/PreloadScene';
+import { StageScene } from './scenes/StageScene';
+import { WorldMapScene } from './scenes/WorldMapScene';
 
 /**
  * WebGL is fastest on a real graphics card, but when the browser only has a
@@ -45,7 +47,7 @@ async function start() {
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     input: { activePointers: 3 }, // multi-touch: move + aim + fire on phones
-    scene: [PreloadScene, MenuScene, BattleScene],
+    scene: [PreloadScene, MenuScene, WorldMapScene, StageScene, BattleScene],
   });
   // Let the automated playtest (tools/playtest.mjs) peek at the game while developing
   if (import.meta.env.DEV) (window as unknown as { game: Phaser.Game }).game = game;

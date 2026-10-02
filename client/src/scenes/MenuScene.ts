@@ -38,7 +38,7 @@ export class MenuScene extends Phaser.Scene {
     addTextButton(this, GAME_WIDTH / 2, 330, 'เล่น 2 คน (เครื่องเดียวกัน)', () => this.scene.start('Battle'), {
       width: 460,
     });
-    addTextButton(this, GAME_WIDTH / 2, 420, 'ด่านบอส (เร็ว ๆ นี้)', () => {}, { width: 460, disabled: true });
+    addTextButton(this, GAME_WIDTH / 2, 420, 'ผจญภัย (ด่านบอส)', () => this.scene.start('WorldMap'), { width: 460, color: 0x8a5cf6 });
     addTextButton(this, GAME_WIDTH / 2, 510, 'PvP ออนไลน์ (เร็ว ๆ นี้)', () => {}, { width: 460, disabled: true });
 
     // Phones: fullscreen hides the browser bar and gives a bigger game
@@ -52,7 +52,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     this.add
-      .text(GAME_WIDTH - 12, GAME_HEIGHT - 10, 'ขั้นที่ 1: ระบบยิง', { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#ffffff' })
+      .text(GAME_WIDTH - 12, GAME_HEIGHT - 10, 'ขั้นที่ 2: ด่านบอส + คำถาม', { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#ffffff' })
       .setOrigin(1, 1)
       .setAlpha(0.7);
   }

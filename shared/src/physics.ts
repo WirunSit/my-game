@@ -41,6 +41,9 @@ export interface ShotTarget {
   /** Feet position */
   x: number;
   y: number;
+  /** Hit circle size and height above the feet (default: a normal player) */
+  radius?: number;
+  offsetY?: number;
 }
 
 export interface ShotResult {
@@ -82,9 +85,10 @@ export function simulateShot(input: ShotInput, terrain: Terrain, targets: ShotTa
       const ignoreShooter = i < 12;
       for (const t of targets) {
         if (ignoreShooter && t.id === shooterId) continue;
+        const r = t.radius ?? BODY_RADIUS;
         const dx = px - t.x;
-        const dy = py - (t.y - BODY_OFFSET_Y);
-        if (dx * dx + dy * dy <= BODY_RADIUS * BODY_RADIUS) {
+        const dy = py - (t.y - (t.offsetY ?? BODY_OFFSET_Y));
+        if (dx * dx + dy * dy <= r * r) {
           path.push({ x: px, y: py });
           return { path, impact: { x: px, y: py }, directHitId: t.id };
         }
@@ -109,8 +113,8 @@ export function simulateShot(input: ShotInput, terrain: Terrain, targets: ShotTa
 /** Damage a player takes from an explosion: full at the centre, fading to 0 at the edge */
 export function blastDamage(impact: Vec, target: ShotTarget, radius: number, damage: number, direct: boolean): number {
   const dx = impact.x - target.x;
-  const dy = impact.y - (target.y - BODY_OFFSET_Y);
-  const reach = radius + BODY_RADIUS;
+  const dy = impact.y - (target.y - (target.offsetY ?? BODY_OFFSET_Y));
+  const reach = radius + (target.radius ?? BODY_RADIUS);
   const dist = Math.hypot(dx, dy);
   if (dist >= reach) return 0;
   const falloff = 1 - dist / reach;

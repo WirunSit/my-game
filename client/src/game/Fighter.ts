@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
-import { BODY_OFFSET_Y, WORLD_HEIGHT, WORLD_WIDTH, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
+import { BODY_OFFSET_Y, BODY_RADIUS, WORLD_HEIGHT, WORLD_WIDTH, type ShotTarget, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, TEXT_STROKE } from '../config';
+import type { Combatant } from './Combatant';
 
 const BODY_HEIGHT = 96;
 const WEAPON_WIDTH = 78;
@@ -25,8 +26,9 @@ export const LOOKS: Record<'boy' | 'girl', FighterLook> = {
 };
 
 /** One player character on the battlefield: position, aim, health and sprites */
-export class Fighter {
+export class Fighter implements Combatant {
   readonly maxHp = 1000;
+  readonly height = BODY_HEIGHT;
   hp = this.maxHp;
   /** Aim angle above the horizon, 0–90° */
   angle = 45;
@@ -42,6 +44,7 @@ export class Fighter {
   private readonly nameTag: Phaser.GameObjects.Text;
   private readonly marker: Phaser.GameObjects.Triangle;
   private hurtTimer?: Phaser.Time.TimerEvent;
+  private shieldImg?: Phaser.GameObjects.Image;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -51,7 +54,7 @@ export class Fighter {
     public y: number,
     public facing: 1 | -1,
     readonly look: FighterLook,
-    readonly weapon: WeaponStats,
+    public weapon: WeaponStats,
     readonly color: number,
   ) {
     this.body = scene.add.image(0, 0, look.side).setOrigin(0.5, 1);
@@ -83,8 +86,22 @@ export class Fighter {
     this.sync();
   }
 
-  get bodyCenter(): Vec {
-    return { x: this.x, y: this.y - BODY_OFFSET_Y };
+  get portraitKey(): string {
+    return this.look.portrait;
+  }
+
+  toTarget(): ShotTarget {
+    return { id: this.id, x: this.x, y: this.y, radius: BODY_RADIUS, offsetY: BODY_OFFSET_Y };
+  }
+
+  /** Little bubble shown around the fighter while a shield item is active */
+  setShieldVisible(on: boolean) {
+    if (on && !this.shieldImg) {
+      this.shieldImg = this.scene.add.image(0, -BODY_HEIGHT / 2, 'fx/fx_shield').setAlpha(0.55);
+      this.shieldImg.setScale((BODY_HEIGHT * 1.25) / this.shieldImg.height);
+      this.root.add(this.shieldImg);
+    }
+    this.shieldImg?.setVisible(on);
   }
 
   /** Where the shot leaves the barrel, in world coordinates */

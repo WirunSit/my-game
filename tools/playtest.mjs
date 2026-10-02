@@ -9,7 +9,9 @@ const URL = 'http://localhost:8080/';
 const out = process.argv[2] ?? '../art/debug/playtest';
 mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+// --disable-gpu: Cloud Shell's software GPU (SwiftShader) sometimes stops delivering frames for
+// tens of seconds, which freezes the game in the test browser only. The game uses Canvas here anyway.
+const browser = await chromium.launch({ args: ['--disable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 // Vite's auto-reload socket is set up for Cloud Shell's proxy, so it can't connect here — ignore it
@@ -22,9 +24,9 @@ const wait = (ms) => page.waitForTimeout(ms);
 const shot = async (name) => {
   // Pause the game while encoding so the turn timer doesn't run on during a slow capture
   const dataUrl = await page.evaluate(() => {
-    window.game.loop.sleep();
+    window.game.loop.pause();
     const url = window.game.canvas.toDataURL('image/jpeg', 0.85);
-    window.game.loop.wake();
+    window.game.loop.resume();
     return url;
   });
   writeFileSync(`${out}/${name}.jpg`, Buffer.from(dataUrl.split(',')[1], 'base64'));
@@ -64,13 +66,15 @@ await shot('5-player2-turn');
 await page.keyboard.down('Space');
 await wait(1150);
 await page.keyboard.up('Space');
-await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'resolving', null, { timeout: 30000, polling: 200 });
-await wait(250);
+// Wait for the shot to land (phase leaves 'flying')
+await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'flying', null, { timeout: 30000, polling: 100 });
+await page.waitForFunction(() => window.game.scene.getScene('Battle').phase !== 'flying', null, { timeout: 30000, polling: 100 });
+await wait(150);
 await shot('6-player2-explosion');
 await page.waitForFunction(() => window.game.scene.getScene('Battle').turn === 2, null, { timeout: 30000, polling: 200 });
 console.log('state:', await battle(() => {
   const s = window.game.scene.getScene('Battle');
-  return s.fighters.map((f) => `${f.name} hp=${f.hp} alive=${f.alive}`).join(' | ');
+  return s.combatants.map((f) => `${f.name} hp=${f.hp} alive=${f.alive}`).join(' | ');
 }));
 
 await browser.close();
