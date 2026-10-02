@@ -1,0 +1,12 @@
+{
+  "name": "tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "inspect": "node inspect.mjs",
+    "slice": "node slice.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
+  }
+}

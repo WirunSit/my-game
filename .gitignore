@@ -23,3 +23,6 @@ Thumbs.db
 # AI tools (personal settings)
 .claude/settings.local.json
 .claude/*.tmp.*
+
+# Sprite slicer debug previews (regenerate with npm run art:debug)
+art/debug/

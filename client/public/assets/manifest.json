@@ -1,0 +1,548 @@
+[
+ {
+  "key": "characters/boy_side",
+  "path": "assets/characters/boy_side.png",
+  "width": 190,
+  "height": 320
+ },
+ {
+  "key": "characters/girl_side",
+  "path": "assets/characters/girl_side.png",
+  "width": 190,
+  "height": 320
+ },
+ {
+  "key": "characters/boy_front",
+  "path": "assets/characters/boy_front.png",
+  "width": 161,
+  "height": 320
+ },
+ {
+  "key": "characters/girl_front",
+  "path": "assets/characters/girl_front.png",
+  "width": 171,
+  "height": 320
+ },
+ {
+  "key": "characters/boy_hurt",
+  "path": "assets/characters/boy_hurt.png",
+  "width": 289,
+  "height": 320
+ },
+ {
+  "key": "characters/boy_win",
+  "path": "assets/characters/boy_win.png",
+  "width": 200,
+  "height": 320
+ },
+ {
+  "key": "characters/girl_hurt",
+  "path": "assets/characters/girl_hurt.png",
+  "width": 269,
+  "height": 320
+ },
+ {
+  "key": "characters/girl_win",
+  "path": "assets/characters/girl_win.png",
+  "width": 204,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_lab",
+  "path": "assets/outfits/boy_lab.png",
+  "width": 208,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_explorer",
+  "path": "assets/outfits/boy_explorer.png",
+  "width": 207,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_firefighter",
+  "path": "assets/outfits/boy_firefighter.png",
+  "width": 199,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_lab",
+  "path": "assets/outfits/girl_lab.png",
+  "width": 213,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_explorer",
+  "path": "assets/outfits/girl_explorer.png",
+  "width": 211,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_firefighter",
+  "path": "assets/outfits/girl_firefighter.png",
+  "width": 214,
+  "height": 320
+ },
+ {
+  "key": "hats/grad_cap",
+  "path": "assets/hats/grad_cap.png",
+  "width": 160,
+  "height": 115
+ },
+ {
+  "key": "hats/beaker_helmet",
+  "path": "assets/hats/beaker_helmet.png",
+  "width": 160,
+  "height": 142
+ },
+ {
+  "key": "hats/leaf_crown",
+  "path": "assets/hats/leaf_crown.png",
+  "width": 160,
+  "height": 103
+ },
+ {
+  "key": "hats/flame_hat",
+  "path": "assets/hats/flame_hat.png",
+  "width": 160,
+  "height": 123
+ },
+ {
+  "key": "hats/rain_cloud",
+  "path": "assets/hats/rain_cloud.png",
+  "width": 160,
+  "height": 115
+ },
+ {
+  "key": "hats/wizard_hat",
+  "path": "assets/hats/wizard_hat.png",
+  "width": 160,
+  "height": 102
+ },
+ {
+  "key": "hats/cat_ears",
+  "path": "assets/hats/cat_ears.png",
+  "width": 160,
+  "height": 113
+ },
+ {
+  "key": "hats/pith_helmet",
+  "path": "assets/hats/pith_helmet.png",
+  "width": 160,
+  "height": 91
+ },
+ {
+  "key": "hats/propeller_cap",
+  "path": "assets/hats/propeller_cap.png",
+  "width": 160,
+  "height": 130
+ },
+ {
+  "key": "accessories/glasses_round",
+  "path": "assets/accessories/glasses_round.png",
+  "width": 160,
+  "height": 75
+ },
+ {
+  "key": "accessories/goggles",
+  "path": "assets/accessories/goggles.png",
+  "width": 160,
+  "height": 88
+ },
+ {
+  "key": "accessories/star_glasses",
+  "path": "assets/accessories/star_glasses.png",
+  "width": 160,
+  "height": 85
+ },
+ {
+  "key": "accessories/face_mask",
+  "path": "assets/accessories/face_mask.png",
+  "width": 160,
+  "height": 110
+ },
+ {
+  "key": "accessories/wings_angel",
+  "path": "assets/accessories/wings_angel.png",
+  "width": 160,
+  "height": 111
+ },
+ {
+  "key": "accessories/cape_red",
+  "path": "assets/accessories/cape_red.png",
+  "width": 160,
+  "height": 108
+ },
+ {
+  "key": "accessories/jetpack",
+  "path": "assets/accessories/jetpack.png",
+  "width": 145,
+  "height": 160
+ },
+ {
+  "key": "accessories/wings_leaf",
+  "path": "assets/accessories/wings_leaf.png",
+  "width": 160,
+  "height": 146
+ },
+ {
+  "key": "weapons/starter_cannon",
+  "path": "assets/weapons/starter_cannon.png",
+  "width": 200,
+  "height": 132
+ },
+ {
+  "key": "weapons/beaker_gun",
+  "path": "assets/weapons/beaker_gun.png",
+  "width": 200,
+  "height": 135
+ },
+ {
+  "key": "weapons/atom_launcher",
+  "path": "assets/weapons/atom_launcher.png",
+  "width": 200,
+  "height": 133
+ },
+ {
+  "key": "weapons/distill_gun",
+  "path": "assets/weapons/distill_gun.png",
+  "width": 200,
+  "height": 138
+ },
+ {
+  "key": "weapons/microscope_gun",
+  "path": "assets/weapons/microscope_gun.png",
+  "width": 200,
+  "height": 142
+ },
+ {
+  "key": "weapons/osmosis_bazooka",
+  "path": "assets/weapons/osmosis_bazooka.png",
+  "width": 200,
+  "height": 120
+ },
+ {
+  "key": "weapons/nucleus_blaster",
+  "path": "assets/weapons/nucleus_blaster.png",
+  "width": 200,
+  "height": 128
+ },
+ {
+  "key": "weapons/chlorophyll_cannon",
+  "path": "assets/weapons/chlorophyll_cannon.png",
+  "width": 200,
+  "height": 138
+ },
+ {
+  "key": "weapons/seed_slingshot",
+  "path": "assets/weapons/seed_slingshot.png",
+  "width": 200,
+  "height": 134
+ },
+ {
+  "key": "weapons/pollen_gun",
+  "path": "assets/weapons/pollen_gun.png",
+  "width": 200,
+  "height": 123
+ },
+ {
+  "key": "weapons/thermo_gun",
+  "path": "assets/weapons/thermo_gun.png",
+  "width": 200,
+  "height": 113
+ },
+ {
+  "key": "weapons/convection_rocket",
+  "path": "assets/weapons/convection_rocket.png",
+  "width": 200,
+  "height": 125
+ },
+ {
+  "key": "weapons/lava_blaster",
+  "path": "assets/weapons/lava_blaster.png",
+  "width": 200,
+  "height": 137
+ },
+ {
+  "key": "weapons/barometer_gun",
+  "path": "assets/weapons/barometer_gun.png",
+  "width": 200,
+  "height": 136
+ },
+ {
+  "key": "weapons/lightning_gun",
+  "path": "assets/weapons/lightning_gun.png",
+  "width": 200,
+  "height": 141
+ },
+ {
+  "key": "weapons/tornado_cannon",
+  "path": "assets/weapons/tornado_cannon.png",
+  "width": 200,
+  "height": 132
+ },
+ {
+  "key": "fx/proj_cannonball",
+  "path": "assets/fx/proj_cannonball.png",
+  "width": 172,
+  "height": 102
+ },
+ {
+  "key": "fx/proj_beaker",
+  "path": "assets/fx/proj_beaker.png",
+  "width": 175,
+  "height": 145
+ },
+ {
+  "key": "fx/proj_atom",
+  "path": "assets/fx/proj_atom.png",
+  "width": 222,
+  "height": 155
+ },
+ {
+  "key": "fx/proj_slime",
+  "path": "assets/fx/proj_slime.png",
+  "width": 187,
+  "height": 120
+ },
+ {
+  "key": "fx/proj_seed",
+  "path": "assets/fx/proj_seed.png",
+  "width": 171,
+  "height": 112
+ },
+ {
+  "key": "fx/proj_pollen",
+  "path": "assets/fx/proj_pollen.png",
+  "width": 168,
+  "height": 125
+ },
+ {
+  "key": "fx/proj_fireball",
+  "path": "assets/fx/proj_fireball.png",
+  "width": 256,
+  "height": 136
+ },
+ {
+  "key": "fx/proj_lightning",
+  "path": "assets/fx/proj_lightning.png",
+  "width": 227,
+  "height": 171
+ },
+ {
+  "key": "fx/explosion_0",
+  "path": "assets/fx/explosion_0.png",
+  "width": 164,
+  "height": 162
+ },
+ {
+  "key": "fx/explosion_1",
+  "path": "assets/fx/explosion_1.png",
+  "width": 232,
+  "height": 201
+ },
+ {
+  "key": "fx/explosion_2",
+  "path": "assets/fx/explosion_2.png",
+  "width": 256,
+  "height": 216
+ },
+ {
+  "key": "fx/explosion_3",
+  "path": "assets/fx/explosion_3.png",
+  "width": 256,
+  "height": 188
+ },
+ {
+  "key": "fx/explosion_4",
+  "path": "assets/fx/explosion_4.png",
+  "width": 256,
+  "height": 160
+ },
+ {
+  "key": "fx/explosion_5",
+  "path": "assets/fx/explosion_5.png",
+  "width": 167,
+  "height": 121
+ },
+ {
+  "key": "fx/fx_spark",
+  "path": "assets/fx/fx_spark.png",
+  "width": 256,
+  "height": 223
+ },
+ {
+  "key": "fx/fx_dust",
+  "path": "assets/fx/fx_dust.png",
+  "width": 256,
+  "height": 164
+ },
+ {
+  "key": "fx/fx_heal",
+  "path": "assets/fx/fx_heal.png",
+  "width": 256,
+  "height": 211
+ },
+ {
+  "key": "fx/fx_shield",
+  "path": "assets/fx/fx_shield.png",
+  "width": 256,
+  "height": 207
+ },
+ {
+  "key": "ui/crate",
+  "path": "assets/ui/crate.png",
+  "width": 192,
+  "height": 163
+ },
+ {
+  "key": "ui/coin",
+  "path": "assets/ui/coin.png",
+  "width": 182,
+  "height": 192
+ },
+ {
+  "key": "ui/crystal",
+  "path": "assets/ui/crystal.png",
+  "width": 156,
+  "height": 192
+ },
+ {
+  "key": "ui/star",
+  "path": "assets/ui/star.png",
+  "width": 192,
+  "height": 184
+ },
+ {
+  "key": "ui/heart",
+  "path": "assets/ui/heart.png",
+  "width": 192,
+  "height": 152
+ },
+ {
+  "key": "ui/wind_arrow",
+  "path": "assets/ui/wind_arrow.png",
+  "width": 192,
+  "height": 127
+ },
+ {
+  "key": "ui/btn_fire",
+  "path": "assets/ui/btn_fire.png",
+  "width": 192,
+  "height": 150
+ },
+ {
+  "key": "ui/btn_arrow",
+  "path": "assets/ui/btn_arrow.png",
+  "width": 192,
+  "height": 179
+ },
+ {
+  "key": "ui/gauge",
+  "path": "assets/ui/gauge.png",
+  "width": 192,
+  "height": 111
+ },
+ {
+  "key": "ui/bar_power",
+  "path": "assets/ui/bar_power.png",
+  "width": 192,
+  "height": 65
+ },
+ {
+  "key": "ui/bar_hp",
+  "path": "assets/ui/bar_hp.png",
+  "width": 192,
+  "height": 61
+ },
+ {
+  "key": "ui/gear",
+  "path": "assets/ui/gear.png",
+  "width": 192,
+  "height": 186
+ },
+ {
+  "key": "ui/sound",
+  "path": "assets/ui/sound.png",
+  "width": 192,
+  "height": 159
+ },
+ {
+  "key": "ui/book",
+  "path": "assets/ui/book.png",
+  "width": 192,
+  "height": 127
+ },
+ {
+  "key": "ui/chest",
+  "path": "assets/ui/chest.png",
+  "width": 192,
+  "height": 152
+ },
+ {
+  "key": "ui/trophy",
+  "path": "assets/ui/trophy.png",
+  "width": 192,
+  "height": 177
+ },
+ {
+  "key": "bosses/mixtron",
+  "path": "assets/bosses/mixtron.png",
+  "width": 640,
+  "height": 585
+ },
+ {
+  "key": "bosses/amoebox",
+  "path": "assets/bosses/amoebox.png",
+  "width": 640,
+  "height": 530
+ },
+ {
+  "key": "bosses/venomroot",
+  "path": "assets/bosses/venomroot.png",
+  "width": 640,
+  "height": 578
+ },
+ {
+  "key": "bosses/magmadon",
+  "path": "assets/bosses/magmadon.png",
+  "width": 640,
+  "height": 511
+ },
+ {
+  "key": "bosses/stormlord",
+  "path": "assets/bosses/stormlord.png",
+  "width": 640,
+  "height": 567
+ },
+ {
+  "key": "minions/test_tube",
+  "path": "assets/minions/test_tube.png",
+  "width": 161,
+  "height": 256
+ },
+ {
+  "key": "minions/bacteria",
+  "path": "assets/minions/bacteria.png",
+  "width": 254,
+  "height": 256
+ },
+ {
+  "key": "minions/mushroom",
+  "path": "assets/minions/mushroom.png",
+  "width": 255,
+  "height": 256
+ },
+ {
+  "key": "minions/fire_spirit",
+  "path": "assets/minions/fire_spirit.png",
+  "width": 169,
+  "height": 256
+ },
+ {
+  "key": "minions/storm_cloud",
+  "path": "assets/minions/storm_cloud.png",
+  "width": 256,
+  "height": 242
+ }
+]
