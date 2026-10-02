@@ -1,4 +1,4 @@
-import { ENEMY_WEAPONS, type WeaponStats } from '@sciboom/shared';
+import { ENEMY_WEAPONS, type DropTable, type WeaponStats } from '@sciboom/shared';
 import type { EnemyConfig } from './Enemy';
 
 export interface StageConfig {
@@ -18,7 +18,11 @@ export interface StageConfig {
   /** Highest question difficulty used (1–3) */
   maxDifficulty: number;
   isBoss?: boolean;
+  /** Weapon drop on victory */
+  drops: DropTable;
 }
+
+const WORLD1_WEAPONS = ['beaker_gun', 'atom_launcher', 'distill_gun'];
 
 export interface WorldConfig {
   id: number;
@@ -59,6 +63,7 @@ export const STAGES: StageConfig[] = [
     ultimateEvery: 0,
     crates: 2,
     maxDifficulty: 1,
+    drops: { weapons: WORLD1_WEAPONS, chance: 0.5, rarityWeights: [75, 25, 0, 0, 0] },
   },
   {
     id: '1-2',
@@ -82,6 +87,7 @@ export const STAGES: StageConfig[] = [
     ultimate: { weapon: ENEMY_WEAPONS.big_slime, shots: 2, name: 'ฝนน้ำยาพิษ' },
     crates: 2,
     maxDifficulty: 2,
+    drops: { weapons: WORLD1_WEAPONS, chance: 0.6, rarityWeights: [50, 45, 5, 0, 0] },
   },
   {
     id: '1-3',
@@ -106,6 +112,7 @@ export const STAGES: StageConfig[] = [
     crates: 2,
     maxDifficulty: 3,
     isBoss: true,
+    drops: { weapons: WORLD1_WEAPONS, chance: 1, rarityWeights: [0, 50, 40, 9, 1] },
   },
 ];
 

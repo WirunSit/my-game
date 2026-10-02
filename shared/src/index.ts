@@ -4,3 +4,4 @@ export * from './physics';
 export * from './weapons';
 export * from './questions';
 export * from './ai';
+export * from './progression';

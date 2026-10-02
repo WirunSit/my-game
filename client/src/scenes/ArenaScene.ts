@@ -364,8 +364,14 @@ export abstract class ArenaScene extends Phaser.Scene {
           .setOrigin(0.5),
       );
     });
+    // Buttons side by side, below the lines
     const top = 270 + lines.length * 40 + 30;
-    buttons.forEach((b, i) => objects.push(addTextButton(this, GAME_WIDTH / 2, top + i * 88, b.label, b.onClick, { color: b.color })));
+    const gap = 24;
+    const bw = Math.min(300, (1100 - gap * (buttons.length - 1)) / buttons.length);
+    buttons.forEach((b, i) => {
+      const x = GAME_WIDTH / 2 + (i - (buttons.length - 1) / 2) * (bw + gap);
+      objects.push(addTextButton(this, x, top, b.label, b.onClick, { color: b.color, width: bw }));
+    });
     for (const o of objects) (o as unknown as Phaser.GameObjects.Components.ScrollFactor & Phaser.GameObjects.Components.Depth).setScrollFactor(0).setDepth(DEPTH.overlay);
     shade.setAlpha(0);
     titleText.setScale(0.5);

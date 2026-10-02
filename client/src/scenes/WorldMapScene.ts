@@ -28,15 +28,25 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.add.text(GAME_WIDTH / 2, 44, 'ผจญภัยโลกวิทยาศาสตร์', text(40, '#ffcc33')).setOrigin(0.5);
 
-    // Crystals owned
-    const crystal = this.add.image(36, 44, 'ui/crystal');
-    crystal.setScale(40 / crystal.height);
-    this.add.text(62, 44, `${save.crystals}`, text(28)).setOrigin(0, 0.5);
+    // Level, coins and crystals
+    this.add.text(30, 30, `Lv ${save.level}`, text(28, '#7dff8a')).setOrigin(0, 0.5);
+    const coin = this.add.image(36, 74, 'ui/coin');
+    coin.setScale(30 / coin.height);
+    this.add.text(58, 74, `${save.coins}`, text(22)).setOrigin(0, 0.5);
+    const crystal = this.add.image(150, 74, 'ui/crystal');
+    crystal.setScale(30 / crystal.height);
+    this.add.text(172, 74, `${save.crystals}`, text(22)).setOrigin(0, 0.5);
 
     this.characterPicker(save.character);
     this.worldOne(save.stars);
     this.otherWorlds();
 
+    addTextButton(this, GAME_WIDTH - 150, GAME_HEIGHT - 48, 'คลังอาวุธ', () => this.scene.start('Inventory', { from: 'WorldMap' }), {
+      width: 240,
+      height: 60,
+      fontSize: 24,
+      color: 0x2fbf5b,
+    });
     addTextButton(this, 130, GAME_HEIGHT - 48, 'กลับเมนู', () => this.scene.start('Menu'), {
       width: 200,
       height: 60,

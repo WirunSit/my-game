@@ -1,14 +1,15 @@
 import * as Phaser from 'phaser';
-import { QuizDeck, WEAPONS, WORLD_HEIGHT, WORLD_WIDTH, planShot, type Vec } from '@sciboom/shared';
-import { DEPTH, GAME_WIDTH } from '../config';
+import { QuizDeck, RARITY_NAMES, WORLD_HEIGHT, WORLD_WIDTH, addExp, planShot, rollDrop, stageRewards, weaponDef, weaponStats, type Vec } from '@sciboom/shared';
+import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
 import { Crate } from '../game/Crate';
 import { Enemy } from '../game/Enemy';
 import { Fighter, LOOKS } from '../game/Fighter';
 import { UNITS } from '../game/questionBank';
 import { STAGES, nextStage, stageById, type StageConfig } from '../game/stages';
-import { loadSave, updateSave } from '../save';
+import { equippedWeapon, loadSave, newUid, updateSave } from '../save';
 import { showQuiz } from '../ui/QuizPopup';
+import { RARITY_COLORS, addStars } from '../ui/rarity';
 import { ArenaScene } from './ArenaScene';
 
 type Item = 'heal' | 'shield' | 'double' | 'power';
@@ -58,7 +59,7 @@ export class StageScene extends ArenaScene {
     const save = loadSave();
     const px = 260 + this.rng.int(0, 100);
     const ex = WORLD_WIDTH - 300;
-    this.player = new Fighter(this, 'player', 'คุณ', px, ground(px), 1, LOOKS[save.character], WEAPONS.starter_cannon, 0x3a8dde);
+    this.player = new Fighter(this, 'player', 'คุณ', px, ground(px), 1, LOOKS[save.character], weaponStats(equippedWeapon(save)), 0x3a8dde);
     this.enemy = new Enemy(this, 'enemy', this.stage.enemy, ex, ground(ex));
     this.enemySkill = this.stage.enemy.skill;
     this.combatants = [this.player, this.enemy];
@@ -276,14 +277,33 @@ export class StageScene extends ArenaScene {
     const { asked, correct, crystals } = this.stats;
     const restart = () => this.scene.restart({ stageId: this.stage.id });
     const toMap = () => this.scene.start('WorldMap');
+    const hpFrac = this.player.hp / this.player.maxHp;
+    const stars = won ? (hpFrac >= 0.6 ? 3 : hpFrac >= 0.3 ? 2 : 1) : 0;
+
+    // Rewards: EXP + coins always (right answers count even when losing), weapon drop on a win
+    const rewards = stageRewards({ won, stars, correct, isBoss: !!this.stage.isBoss });
+    const drop = won ? rollDrop(this.stage.drops, this.rng) : null;
+    let levelsGained = 0;
+    const saved = updateSave((d) => {
+      const lv = addExp(d, rewards.exp);
+      d.level = lv.level;
+      d.exp = lv.exp;
+      levelsGained = lv.levelsGained;
+      d.coins += rewards.coins;
+      if (won) d.stars[this.stage.id] = Math.max(d.stars[this.stage.id] ?? 0, stars);
+      if (drop) d.weapons.push({ uid: newUid(), id: drop.id, rarity: drop.rarity, level: 1 });
+    });
+    const rewardLines = [`EXP +${rewards.exp} · เหรียญ +${rewards.coins} · ผลึกความรู้ +${crystals}`];
+    if (levelsGained > 0) rewardLines.push(`เลเวลอัป! ตอนนี้ Lv ${saved.level}`);
 
     if (!won) {
       this.enemy.celebrate();
       this.showResult(
         'แพ้แล้ว ลองใหม่นะ!',
-        [`ตอบถูก ${correct}/${asked} ข้อ`, 'ตอบคำถามให้ถูกเพื่อขัดท่าไม้ตายของศัตรู'],
+        [`ตอบถูก ${correct}/${asked} ข้อ`, ...rewardLines, 'ตอบคำถามให้ถูกเพื่อขัดท่าไม้ตายของศัตรู'],
         [
           { label: 'ลองอีกครั้ง', onClick: restart },
+          { label: 'คลังอาวุธ', onClick: () => this.scene.start('Inventory'), color: 0x8a5cf6 },
           { label: 'แผนที่', onClick: toMap, color: 0x3a8dde },
         ],
         '#ff8866',
@@ -293,24 +313,41 @@ export class StageScene extends ArenaScene {
 
     this.player.celebrate();
     this.focusOn(this.player);
-    const hpFrac = this.player.hp / this.player.maxHp;
-    const stars = hpFrac >= 0.6 ? 3 : hpFrac >= 0.3 ? 2 : 1;
-    updateSave((d) => {
-      d.stars[this.stage.id] = Math.max(d.stars[this.stage.id] ?? 0, stars);
-    });
-
     const next = nextStage(this.stage.id);
     const buttons = [];
     if (next) buttons.push({ label: 'ด่านต่อไป', onClick: () => this.scene.start('Stage', { stageId: next.id }) });
     buttons.push({ label: 'เล่นอีกครั้ง', onClick: restart, color: next ? 0x8a5cf6 : undefined });
+    buttons.push({ label: 'คลังอาวุธ', onClick: () => this.scene.start('Inventory'), color: 0x2fbf5b });
     buttons.push({ label: 'แผนที่', onClick: toMap, color: 0x3a8dde });
     // First line left empty: the star images go there
-    this.showResult(this.stage.isBoss ? 'ปราบบอสสำเร็จ!' : 'ผ่านด่าน!', ['', `ตอบถูก ${correct}/${asked} ข้อ · ได้ผลึกความรู้ ${crystals} ชิ้น`], buttons);
+    this.showResult(this.stage.isBoss ? 'ปราบบอสสำเร็จ!' : 'ผ่านด่าน!', ['', `ตอบถูก ${correct}/${asked} ข้อ`, ...rewardLines], buttons);
     for (let i = 0; i < 3; i++) {
-      const star = this.add.image(GAME_WIDTH / 2 + (i - 1) * 70, 250, 'ui/star').setScrollFactor(0).setDepth(DEPTH.overlay);
-      const size = 56 / star.height;
+      const star = this.add.image(GAME_WIDTH / 2 + (i - 1) * 64, 242, 'ui/star').setScrollFactor(0).setDepth(DEPTH.overlay);
+      const size = 46 / star.height;
       star.setScale(0).setAlpha(i < stars ? 1 : 0.25);
       this.tweens.add({ targets: star, scale: size, duration: 400, delay: 300 + i * 250, ease: 'Back.out' });
     }
+    if (drop) this.showDropCard(drop.id, drop.rarity);
+  }
+
+  /** "ได้อาวุธใหม่!" card under the result buttons */
+  private showDropCard(id: string, rarity: number) {
+    const cx = GAME_WIDTH / 2;
+    const cy = 600;
+    const parts: Phaser.GameObjects.GameObject[] = [];
+    const g = this.add.graphics();
+    g.fillStyle(0x1b1d3a, 0.9).fillRoundedRect(cx - 260, cy - 62, 520, 124, 20);
+    g.lineStyle(4, RARITY_COLORS[rarity] ?? 0xffffff, 1).strokeRoundedRect(cx - 260, cy - 62, 520, 124, 20);
+    parts.push(g);
+    const img = this.add.image(cx - 170, cy, `weapons/${id}`);
+    img.setScale(Math.min(140 / img.width, 100 / img.height));
+    parts.push(img);
+    const style = (size: number, color: string) => ({ fontFamily: FONT_FAMILY, fontSize: `${size}px`, fontStyle: '700', color, stroke: TEXT_STROKE, strokeThickness: 4, padding: { top: 6 } });
+    parts.push(this.add.text(cx - 80, cy - 38, 'ได้อาวุธใหม่!', style(22, '#ffcc33')).setOrigin(0, 0.5));
+    parts.push(this.add.text(cx - 80, cy - 4, weaponDef(id).name, style(26, '#ffffff')).setOrigin(0, 0.5));
+    parts.push(this.add.text(cx - 80, cy + 32, `ระดับ ${RARITY_NAMES[rarity]}`, style(18, '#dddddd')).setOrigin(0, 0.5));
+    parts.push(...addStars(this, cx + 150, cy + 32, rarity));
+    for (const p of parts) (p as unknown as Phaser.GameObjects.Components.ScrollFactor & Phaser.GameObjects.Components.Depth).setScrollFactor(0).setDepth(DEPTH.overlay);
+    this.tweens.add({ targets: parts, alpha: { from: 0, to: 1 }, duration: 500, delay: 1100 });
   }
 }

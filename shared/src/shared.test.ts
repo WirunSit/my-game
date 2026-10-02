@@ -119,3 +119,50 @@ test('a perfect-skill AI lands close to its target', () => {
   assert.ok(r.impact);
   assert.ok(Math.abs(r.impact!.x - tx) < 120, `landed at ${r.impact!.x}, target ${tx}`);
 });
+
+// ---- Progression -------------------------------------------------------------
+import { addExp, canFuse, expToNext, rollDrop, upgradeCost, weaponStats, MAX_LEVEL, WEAPON_CATALOG } from './index';
+
+test('EXP levels up, possibly several times, and stops at the max level', () => {
+  const one = addExp({ level: 1, exp: 0 }, expToNext(1));
+  assert.deepEqual([one.level, one.exp, one.levelsGained], [2, 0, 1]);
+  const many = addExp({ level: 1, exp: 0 }, expToNext(1) + expToNext(2) + 5);
+  assert.deepEqual([many.level, many.exp], [3, 5]);
+  const capped = addExp({ level: MAX_LEVEL - 1, exp: 0 }, 1e9);
+  assert.deepEqual([capped.level, capped.exp], [MAX_LEVEL, 0]);
+});
+
+test('higher rarity and level mean more damage', () => {
+  const base = weaponStats({ id: 'beaker_gun', rarity: 1, level: 1 }).damage;
+  assert.ok(weaponStats({ id: 'beaker_gun', rarity: 1, level: 5 }).damage > base);
+  assert.ok(weaponStats({ id: 'beaker_gun', rarity: 3, level: 1 }).damage > base);
+});
+
+test('upgrade costs grow with level and rarity', () => {
+  assert.ok(upgradeCost(1, 5).coins > upgradeCost(1, 1).coins);
+  assert.ok(upgradeCost(3, 1).crystals > upgradeCost(1, 1).crystals);
+});
+
+test('fusing needs three copies of the same weapon and rarity', () => {
+  const w = (uid: string, rarity = 1, id = 'beaker_gun') => ({ uid, id, rarity, level: 1 });
+  assert.equal(canFuse([w('a'), w('b')], w('a')), false);
+  assert.equal(canFuse([w('a'), w('b'), w('c')], w('a')), true);
+  assert.equal(canFuse([w('a'), w('b'), w('c', 2)], w('a')), false);
+  assert.equal(canFuse([w('a', 5), w('b', 5), w('c', 5)], w('a', 5)), false);
+});
+
+test('drops follow the table', () => {
+  const rng = new Rng(1);
+  const table = { weapons: ['beaker_gun', 'atom_launcher'], chance: 1, rarityWeights: [0, 0, 1, 0, 0] as [number, number, number, number, number] };
+  for (let i = 0; i < 20; i++) {
+    const d = rollDrop(table, rng)!;
+    assert.ok(table.weapons.includes(d.id));
+    assert.equal(d.rarity, 3);
+  }
+  assert.equal(rollDrop({ ...table, chance: 0 }, rng), null);
+});
+
+test('every catalogue weapon has art', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../client/public/assets/manifest.json', import.meta.url), 'utf8')) as { key: string }[];
+  for (const w of WEAPON_CATALOG) assert.ok(manifest.some((m) => m.key === `weapons/${w.id}`), w.id);
+});

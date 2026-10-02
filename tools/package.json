@@ -6,7 +6,8 @@
     "inspect": "node inspect.mjs",
     "slice": "node slice.mjs",
     "playtest": "node playtest.mjs",
-    "playtest:stage": "node playtest-stage.mjs"
+    "playtest:stage": "node playtest-stage.mjs",
+    "playtest:inventory": "node playtest-inventory.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",

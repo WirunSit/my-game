@@ -11,11 +11,6 @@ export interface WeaponStats {
   projectile: string;
 }
 
-export const WEAPONS: Record<string, WeaponStats> = {
-  starter_cannon: { id: 'starter_cannon', name: 'ปืนใหญ่ฝึกหัด', damage: 260, radius: 55, projectile: 'proj_cannonball' },
-  beaker_gun: { id: 'beaker_gun', name: 'ปืนบีกเกอร์', damage: 260, radius: 55, projectile: 'proj_beaker' },
-};
-
 /** Enemy attacks (not collectable) */
 export const ENEMY_WEAPONS: Record<string, WeaponStats> = {
   slime_spit: { id: 'slime_spit', name: 'น้ำยาพิษ', damage: 140, radius: 45, projectile: 'proj_slime' },
