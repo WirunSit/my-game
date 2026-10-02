@@ -8,3 +8,4 @@ export * from './progression';
 export * from './cosmetics';
 export * from './assist';
 export * from './skills';
+export * from './battle';

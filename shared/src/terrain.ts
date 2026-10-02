@@ -41,6 +41,44 @@ export class Terrain {
     return t;
   }
 
+  /** Independent copy (battle rules simulate on a copy, the screen catches up later) */
+  clone(): Terrain {
+    const t = new Terrain(this.width, this.height);
+    t.mask.set(this.mask);
+    return t;
+  }
+
+  /**
+   * Run-length encoding of the mask: alternating counts of empty and solid
+   * pixels, row by row. A fresh map is ~3 KB of JSON; it lets the PvP server
+   * send the exact same ground to both players.
+   */
+  encode(): number[] {
+    const runs: number[] = [];
+    let value = 0;
+    let count = 0;
+    for (let i = 0; i < this.mask.length; i++) {
+      if (this.mask[i] === value) count++;
+      else {
+        runs.push(count);
+        value = this.mask[i];
+        count = 1;
+      }
+    }
+    runs.push(count);
+    return runs;
+  }
+
+  static decode(runs: number[], width = WORLD_WIDTH, height = WORLD_HEIGHT): Terrain {
+    const t = new Terrain(width, height);
+    let i = 0;
+    runs.forEach((n, k) => {
+      if (k % 2 === 1) t.mask.fill(1, i, i + n);
+      i += n;
+    });
+    return t;
+  }
+
   isSolid(x: number, y: number): boolean {
     const xi = Math.floor(x);
     const yi = Math.floor(y);

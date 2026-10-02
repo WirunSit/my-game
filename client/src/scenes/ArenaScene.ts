@@ -1,38 +1,43 @@
 import * as Phaser from 'phaser';
 import {
-  BODY_RADIUS,
-  BURN_DAMAGE,
   BURN_TURNS,
-  DRAIN_SHARE,
   GAUGE_HIT,
   GAUGE_HURT,
   GAUGE_MAX,
   HEAL_AMOUNT,
   ITEM_SKILLS,
   MAX_WIND,
-  PUSH_DISTANCE,
   Rng,
-  SPECIAL_COOLDOWN,
+  SKILL_SLOTS,
   SPECIAL_KINDS,
   STEP,
+  TURN_SECONDS,
   Terrain,
+  WALK_PER_TURN,
   WORLD_HEIGHT,
   WORLD_WIDTH,
+  addGauge,
   aimGuideLength,
-  blastDamage,
   flightOptions,
   fly,
-  freshItemUses,
+  isInstantSkill,
   launchState,
+  newSkillState,
   pathPrefix,
-  planVolley,
-  strikeBolt,
+  resolveShot,
+  shotModeFor,
+  skillBlocker,
+  spendSkill,
+  startSkillTurn,
+  tickBurn,
   weaponSpecial,
   windFactor,
-  type ItemSkill,
-  type Projectile,
+  type Hit,
   type ShotMode,
-  type SpecialKind,
+  type ShotTimeline,
+  type SkillSlot,
+  type SkillState,
+  type Unit,
   type Vec,
   type WeaponStats,
 } from '@sciboom/shared';
@@ -43,13 +48,11 @@ import type { Fighter } from '../game/Fighter';
 import { TerrainView } from '../game/TerrainView';
 import { Controls } from '../ui/Controls';
 import { Hud } from '../ui/Hud';
-import { SKILL_SLOTS, SkillBar, type SkillSlot, type SlotState } from '../ui/SkillBar';
+import { SkillBar, type SlotState } from '../ui/SkillBar';
 import { addTextButton } from '../ui/TextButton';
 import { loadSave } from '../save';
 
-const TURN_SECONDS = 20;
 const WALK_SPEED = 110; // px/s
-const WALK_PER_TURN = 220; // px of walking allowed per turn
 const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 const CHARGE_SPEED = 65; // power/s while holding fire (0→100 in ~1.5 s)
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
@@ -72,40 +75,24 @@ export interface ShotOutcome {
   hits: { target: Combatant; damage: number }[];
 }
 
-interface Flight {
-  proj: Projectile;
-  sprite: Phaser.GameObjects.Image;
-  elapsed: number;
-  done: boolean;
-}
-
-/** All projectiles of one shot (triple shot and split shells fly together) */
-interface Volley {
-  flights: Flight[];
+/** A shot timeline being played back on screen */
+interface Playback {
+  timeline: ShotTimeline;
   shooter: Combatant;
-  weapon: WeaponStats;
-  damageMul: number;
-  special: SpecialKind | null;
+  projectile: string;
+  sprites: Phaser.GameObjects.Image[];
+  /** Index of the next event to show */
+  next: number;
+  elapsed: number;
   outcome: ShotOutcome;
   resolve: (o: ShotOutcome) => void;
 }
 
-/** A human fighter's skills for the current match */
-interface SkillState {
-  uses: Record<ItemSkill, number>;
-  /** Weapon special allowed (★3+ in stages, always in 2-player mode) */
-  specialUnlocked: boolean;
-  /** Own turns until the special can be used again */
-  specialCooldown: number;
-  /** Knowledge gauge 0–GAUGE_MAX */
-  gauge: number;
-  usedThisTurn: boolean;
-  armed: SkillSlot | null;
-}
-
 /**
- * Everything every battle mode shares: map, camera, HUD, controls, the human
- * player's turn (walk/aim/charge), projectile flight and explosions.
+ * Everything every battle mode shares: map, camera, HUD, controls, skills, the
+ * human player's turn (walk/aim/charge) and playing shots back on screen.
+ * The rules themselves (where shots go, damage, effects) are in @sciboom/shared
+ * (resolveShot), so the PvP server plays by exactly the same rules.
  * Subclasses decide whose turn it is and what happens after each shot.
  */
 export abstract class ArenaScene extends Phaser.Scene {
@@ -119,16 +106,17 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected turn = 0;
   /** Player level that sets the beginner help (aim guide length, gentler wind) */
   protected assistLevel = 1;
+  protected skills = new Map<Combatant, SkillState>();
+  /** Turns of burning left (burn special) */
+  protected burns = new Map<Combatant, number>();
+  /** The fighter whose input is being read right now */
+  protected human: Fighter | null = null;
 
   private timeLeft = 0;
   private walkLeft = 0;
   private power = 0;
-  private human: Fighter | null = null;
   private resolveHuman: ((power: number | null) => void) | null = null;
-  private volley: Volley | null = null;
-  private skills = new Map<Combatant, SkillState>();
-  /** Turns of burning left (burn special) */
-  private burns = new Map<Combatant, number>();
+  private playback: Playback | null = null;
   private skillBar!: SkillBar;
   private skyMarker!: Phaser.GameObjects.Triangle;
   private guide!: Phaser.GameObjects.Graphics;
@@ -136,7 +124,7 @@ export abstract class ArenaScene extends Phaser.Scene {
   private panning = false;
   private camTarget: Combatant | null = null;
   /** Bumped when the scene shuts down so an old match loop stops */
-  private matchToken = 0;
+  protected matchToken = 0;
 
   protected get terrain(): Terrain {
     return this.terrainView.terrain;
@@ -144,13 +132,13 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   // ---- Setup ----------------------------------------------------------------
 
-  /** Build background, ground and camera. Call first in create(). */
-  protected setupArena(seed: number, backgroundKey: string, groundKey: string): Terrain {
+  /** Build background, ground and camera. Call first in create(). Online games pass the server's map. */
+  protected setupArena(seed: number, backgroundKey: string, groundKey: string, map?: Terrain): Terrain {
     // The same Scene object is reused on restart, so reset everything
     this.combatants = [];
     this.phase = 'idle';
     this.turn = 0;
-    this.volley = null;
+    this.playback = null;
     this.skills = new Map();
     this.burns = new Map();
     this.human = null;
@@ -163,7 +151,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.matchToken++);
 
     drawArtBackground(this, backgroundKey, WORLD_WIDTH);
-    const terrain = Terrain.generate(seed);
+    const terrain = map ?? Terrain.generate(seed);
     this.terrainView = new TerrainView(this, terrain, groundKey);
 
     this.skyMarker = this.add
@@ -205,7 +193,12 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
-    back.on('pointerup', () => this.scene.start(menuScene));
+    back.on('pointerup', () => this.leave(menuScene));
+  }
+
+  /** Hook: leaving the match from the ☰ button (online games tell the server first) */
+  protected leave(menuScene: string) {
+    this.scene.start(menuScene);
   }
 
   // ---- Match loop -----------------------------------------------------------
@@ -229,13 +222,17 @@ export abstract class ArenaScene extends Phaser.Scene {
       }
       const alive = this.combatants.filter((c) => c.alive);
       if (alive.length <= 1) {
-        this.phase = 'over';
-        this.combatants.forEach((c) => c.setActive(false));
-        this.onMatchEnd(alive[0] ?? null);
+        this.endMatch(alive[0] ?? null);
         return;
       }
       this.turn++;
     }
+  }
+
+  protected endMatch(winner: Combatant | null) {
+    this.phase = 'over';
+    this.combatants.forEach((c) => c.setActive(false));
+    this.onMatchEnd(winner);
   }
 
   /** Play one turn for `actor` (player input, AI, quiz…) */
@@ -243,36 +240,36 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected abstract onMatchEnd(winner: Combatant | null): void;
 
   /** Things that happen before anyone acts: camouflage wears off, fire burns, cooldowns tick */
-  private async startOfTurn(actor: Combatant) {
+  protected async startOfTurn(actor: Combatant) {
     if (actor.hidden) (actor as Fighter).setStealth(false);
-    const sk = this.skills.get(actor);
-    if (sk && sk.specialCooldown > 0) sk.specialCooldown--;
-    const burning = this.burns.get(actor) ?? 0;
-    if (burning > 0) {
-      this.burns.set(actor, burning - 1);
-      this.focusOn(actor);
-      this.hud.banner(`${actor.name} โดนไฟไหม้!`, '#ff8844');
-      await this.wait(500);
-      actor.takeDamage(BURN_DAMAGE);
-      this.floatText(actor.x, actor.y - actor.height - 30, `-${BURN_DAMAGE}`, '#ff8844');
-      this.hud.refreshHp();
-      await this.wait(700);
-    }
+    const unit = this.unitOf(actor);
+    const dmg = tickBurn(unit);
+    this.burns.set(actor, unit.burn);
+    if (dmg > 0) await this.showBurn(actor, dmg);
+  }
+
+  protected async showBurn(actor: Combatant, dmg: number) {
+    this.focusOn(actor);
+    this.hud.banner(`${actor.name} โดนไฟไหม้!`, '#ff8844');
+    await this.wait(500);
+    actor.takeDamage(dmg);
+    this.floatText(actor.x, actor.y - actor.height - 30, `-${dmg}`, '#ff8844');
+    this.hud.refreshHp();
+    await this.wait(700);
   }
 
   /** Let a human walk, aim and charge. Resolves with the power, or null if the turn was lost. */
-  protected humanTurn(f: Fighter): Promise<number | null> {
+  protected humanTurn(f: Fighter, seconds = TURN_SECONDS): Promise<number | null> {
     this.human = f;
     const sk = this.skills.get(f);
     if (sk) {
-      sk.usedThisTurn = false;
-      sk.armed = null;
+      startSkillTurn(sk);
       this.skillBar.setIcons(f.weapon.id, f.portraitKey);
       this.skillBar.setVisible(true);
       this.refreshSkills();
     }
     this.phase = 'aiming';
-    this.timeLeft = TURN_SECONDS;
+    this.timeLeft = seconds;
     this.walkLeft = WALK_PER_TURN;
     this.power = 0;
     f.setActive(true);
@@ -284,7 +281,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     return new Promise((resolve) => (this.resolveHuman = resolve));
   }
 
-  private finishHuman(power: number | null) {
+  /** End the human's input: with a power to shoot, or null if the turn is lost */
+  protected finishHuman(power: number | null) {
     const resolve = this.resolveHuman;
     this.resolveHuman = null;
     this.human?.setActive(false);
@@ -301,30 +299,28 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** Give a human fighter item skills, a special and the knowledge gauge for this match */
   protected enableSkills(f: Fighter, specialUnlocked: boolean) {
-    this.skills.set(f, { uses: freshItemUses(), specialUnlocked, specialCooldown: 0, gauge: 0, usedThisTurn: false, armed: null });
+    this.skills.set(f, newSkillState(specialUnlocked));
   }
 
   /** Fill the knowledge gauge: right answers, hits and getting hit all add to it */
   protected addGauge(c: Combatant, amount: number) {
     const sk = this.skills.get(c);
     if (!sk) return;
-    const before = sk.gauge;
-    sk.gauge = Phaser.Math.Clamp(sk.gauge + amount, 0, GAUGE_MAX);
-    if (before < GAUGE_MAX && sk.gauge >= GAUGE_MAX) this.floatText(c.x, c.y - c.height - 90, 'ไม้ตายพร้อม!', '#ffcc33');
+    if (addGauge(sk, amount)) this.floatText(c.x, c.y - c.height - 90, 'ไม้ตายพร้อม!', '#ffcc33');
     if (c === this.human) this.refreshSkills();
   }
 
   private slotState(sk: SkillState, slot: SkillSlot, f: Fighter): SlotState {
     const armed = sk.armed === slot;
-    const free = !sk.usedThisTurn;
+    const blocker = skillBlocker(sk, slot, f.hp >= f.maxHp);
+    const enabled = blocker === null;
     if (slot === 'special') {
-      if (!sk.specialUnlocked) return { enabled: false, armed, note: '★3' };
-      if (sk.specialCooldown > 0) return { enabled: false, armed, note: `อีก ${sk.specialCooldown}` };
-      return { enabled: free, armed };
+      if (blocker === 'locked') return { enabled, armed, note: '★3' };
+      if (blocker === 'cooldown') return { enabled, armed, note: `อีก ${sk.specialCooldown}` };
+      return { enabled, armed };
     }
-    if (slot === 'ultimate') return { enabled: free && sk.gauge >= GAUGE_MAX, armed, fill: sk.gauge / GAUGE_MAX };
-    const count = sk.uses[slot];
-    return { enabled: free && count > 0 && !(slot === 'heal' && f.hp >= f.maxHp), armed, count };
+    if (slot === 'ultimate') return { enabled, armed, fill: sk.gauge / GAUGE_MAX };
+    return { enabled, armed, count: sk.uses[slot] };
   }
 
   private skillHint(sk: SkillState, f: Fighter): string {
@@ -342,7 +338,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     }
   }
 
-  private refreshSkills() {
+  protected refreshSkills() {
     const f = this.human;
     const sk = f && this.skills.get(f);
     if (!f || !sk) return;
@@ -362,25 +358,31 @@ export abstract class ArenaScene extends Phaser.Scene {
       this.refreshSkills();
       return;
     }
-    if (!this.slotState(sk, slot, f).enabled) {
+    if (skillBlocker(sk, slot, f.hp >= f.maxHp) !== null) {
       if (sk.usedThisTurn) this.hud.banner('ใช้สกิลได้ตาละ 1 ครั้ง', '#cccccc');
       return;
     }
+    if (isInstantSkill(slot)) this.useInstantSkill(f, slot);
+    else sk.armed = slot;
+    this.refreshSkills();
+  }
+
+  /** Heal or camouflage right now (online games ask the server instead) */
+  protected useInstantSkill(f: Fighter, slot: 'heal' | 'stealth') {
+    spendSkill(this.skills.get(f)!, slot);
+    this.showInstantSkill(f, slot);
+  }
+
+  protected showInstantSkill(f: Fighter, slot: 'heal' | 'stealth') {
     if (slot === 'heal') {
-      sk.uses.heal--;
-      sk.usedThisTurn = true;
       f.heal(HEAL_AMOUNT);
       this.floatText(f.x, f.y - f.height - 30, `+${HEAL_AMOUNT}`, '#7dff8a');
       this.hud.refreshHp();
-    } else if (slot === 'stealth') {
-      sk.uses.stealth--;
-      sk.usedThisTurn = true;
+    } else {
       f.setStealth(true);
       this.hud.banner('พรางตัว!', '#bfe8ff');
-    } else {
-      sk.armed = slot;
     }
-    this.refreshSkills();
+    if (f === this.human) this.refreshSkills();
   }
 
   /**
@@ -392,13 +394,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (power === null) return [];
     const sk = this.skills.get(f);
     const armed = sk?.armed ?? null;
-    if (sk && armed) {
-      sk.armed = null;
-      sk.usedThisTurn = true;
-      if (armed === 'special') sk.specialCooldown = SPECIAL_COOLDOWN;
-      else if (armed === 'ultimate') sk.gauge = 0;
-      else sk.uses[armed as ItemSkill]--;
-    }
+    if (sk && armed) spendSkill(sk, armed);
     if (armed === 'double') {
       const first = await this.shoot(f, power, opts);
       if (!this.combatants.some((c) => c !== f && c.alive)) return [first];
@@ -406,7 +402,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       await this.wait(500);
       return [first, await this.shoot(f, power, { ...opts, damageMul: 1 })];
     }
-    const mode: ShotMode = armed === 'triple' || armed === 'plane' || armed === 'special' || armed === 'ultimate' ? armed : 'normal';
+    const mode = shotModeFor(armed);
     if (mode === 'ultimate') {
       this.hud.banner('ไม้ตาย!', '#ffcc33');
       await this.wait(400);
@@ -416,7 +412,13 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   // ---- Shooting -------------------------------------------------------------
 
-  /** Fire a shot (one or more projectiles) from `shooter`; resolves after everything has landed */
+  /** The rules' view of a combatant */
+  protected unitOf(c: Combatant): Unit {
+    const t = c.toTarget();
+    return { id: c.id, x: c.x, y: c.y, hp: c.hp, maxHp: c.maxHp, alive: c.alive, radius: t.radius!, offsetY: t.offsetY!, burn: this.burns.get(c) ?? 0 };
+  }
+
+  /** Fire a shot from `shooter`: work it out with the shared rules, then play it on screen */
   protected shoot(shooter: Combatant, power: number, opts: ShotOptions = {}): Promise<ShotOutcome> {
     const weapon = opts.weapon ?? shooter.weapon;
     if (opts.angle !== undefined) {
@@ -424,162 +426,148 @@ export abstract class ArenaScene extends Phaser.Scene {
       shooter.sync();
     }
     const mode = opts.mode ?? 'normal';
-    const special = mode === 'special' ? weaponSpecial(weapon.id).kind : null;
     const m = shooter.muzzle();
-    const input = { x: m.x, y: m.y, angleDeg: shooter.angle, facing: shooter.facing, power, wind: this.wind };
-    const projectiles = planVolley(mode, special, input, this.terrain, this.targets(), shooter.id);
+    const timeline = resolveShot(
+      this.terrain,
+      this.combatants.map((c) => this.unitOf(c)),
+      {
+        shooterId: shooter.id,
+        input: { x: m.x, y: m.y, angleDeg: shooter.angle, facing: shooter.facing, power, wind: this.wind },
+        mode,
+        special: mode === 'special' ? weaponSpecial(weapon.id).kind : null,
+        damage: weapon.damage,
+        radius: weapon.radius,
+        damageMul: opts.damageMul ?? 1,
+      },
+      {
+        modifyDamage: (id, dmg) => {
+          const c = this.combatants.find((o) => o.id === id);
+          return c ? this.modifyDamage(c, dmg) : dmg;
+        },
+      },
+    );
+    return this.playTimeline(shooter, timeline, weapon.projectile);
+  }
 
+  /** Animate a shot (worked out here or by the PvP server); resolves once everything has landed */
+  protected playTimeline(shooter: Combatant, timeline: ShotTimeline, projectile = shooter.weapon.projectile): Promise<ShotOutcome> {
     this.phase = 'flying';
     this.camTarget = null;
     this.cameras.main.stopFollow();
+    const sprites = timeline.flights.map((fl) => {
+      const key = fl.look === 'plane' ? 'fx/paper_plane' : fl.look === 'bolt' ? 'fx/proj_lightning' : `fx/${projectile}`;
+      const img = this.add.image(fl.path[0].x, fl.path[0].y, key).setOrigin(0.7, 0.5).setDepth(DEPTH.projectile).setVisible(false);
+      return img.setScale((40 * fl.size) / img.height);
+    });
     return new Promise((resolve) => {
-      this.volley = { flights: [], shooter, weapon, damageMul: opts.damageMul ?? 1, special, outcome: { impact: null, hits: [] }, resolve };
-      for (const p of projectiles) this.launch(p);
+      this.playback = { timeline, shooter, projectile, sprites, next: 0, elapsed: 0, outcome: { impact: null, hits: [] }, resolve };
     });
   }
 
-  private targets() {
-    return this.combatants.filter((c) => c.alive).map((c) => c.toTarget());
-  }
+  private updatePlayback(dt: number) {
+    const pb = this.playback!;
+    pb.elapsed += dt;
+    const step = Math.floor(pb.elapsed / STEP);
+    let lead: Phaser.GameObjects.Image | null = null;
+    pb.timeline.flights.forEach((fl, i) => {
+      const sprite = pb.sprites[i];
+      const k = step - fl.start;
+      if (!sprite.active || k < 0) return;
+      if (k >= fl.path.length - 1) {
+        sprite.destroy();
+        return;
+      }
+      const p = fl.path[k];
+      const prev = fl.path[Math.max(0, k - 1)];
+      sprite.setVisible(true).setPosition(p.x, p.y);
+      if (p.x !== prev.x || p.y !== prev.y) sprite.rotation = Math.atan2(p.y - prev.y, p.x - prev.x);
+      lead ??= sprite;
+    });
+    const events = pb.timeline.events;
+    while (pb.next < events.length && events[pb.next].t <= step) this.showEvent(pb, events[pb.next++]);
 
-  private launch(proj: Projectile) {
-    const v = this.volley!;
-    const key = proj.look === 'plane' ? 'fx/paper_plane' : proj.look === 'bolt' ? 'fx/proj_lightning' : `fx/${v.weapon.projectile}`;
-    const start = proj.result.path[0];
-    const sprite = this.add.image(start.x, start.y, key).setOrigin(0.7, 0.5).setDepth(DEPTH.projectile);
-    sprite.setScale((40 * proj.size) / sprite.height).setVisible(false);
-    v.flights.push({ proj, sprite, elapsed: 0, done: false });
-  }
-
-  private updateVolley(dt: number) {
-    const v = this.volley!;
-    for (const fl of v.flights) {
-      if (fl.done) continue;
-      fl.elapsed += dt;
-      const path = fl.proj.result.path;
-      const step = Math.floor(fl.elapsed / STEP) - fl.proj.delay;
-      if (step < 0) continue;
-      const i = Math.min(path.length - 1, step);
-      const p = path[i];
-      const prev = path[Math.max(0, i - 1)];
-      fl.sprite.setVisible(true).setPosition(p.x, p.y);
-      if (p.x !== prev.x || p.y !== prev.y) fl.sprite.rotation = Math.atan2(p.y - prev.y, p.x - prev.x);
-      if (i === path.length - 1) this.land(fl);
-    }
-    if (!this.volley) return;
     // Camera and sky marker follow the first projectile still in the air
-    const live = v.flights.find((fl) => !fl.done && fl.sprite.visible);
+    const live = lead as Phaser.GameObjects.Image | null;
+    this.skyMarker.setVisible(!!live && live.y < 0);
     if (live) {
       const cam = this.cameras.main;
-      cam.scrollX += (live.sprite.x - GAME_WIDTH / 2 - cam.scrollX) * 0.15;
-      cam.scrollY += (live.sprite.y - GAME_HEIGHT / 2 - cam.scrollY) * 0.15;
-      this.skyMarker.setVisible(live.sprite.y < 0);
-      if (live.sprite.y < 0) this.skyMarker.x = live.sprite.x;
+      cam.scrollX += (live.x - GAME_WIDTH / 2 - cam.scrollX) * 0.15;
+      if (live.y < 0) this.skyMarker.x = live.x;
     }
-    if (v.flights.every((fl) => fl.done)) this.endVolley();
+    if (step >= pb.timeline.end && pb.next >= events.length) {
+      pb.sprites.forEach((s) => s.destroy());
+      this.playback = null;
+      this.skyMarker.setVisible(false);
+      this.phase = 'idle';
+      pb.resolve(pb.outcome);
+    }
   }
 
-  /** One projectile has finished flying */
-  private land(fl: Flight) {
-    const v = this.volley!;
-    fl.done = true;
-    fl.sprite.destroy();
-    const { impact, directHitId } = fl.proj.result;
-    if (fl.proj.look === 'plane') {
-      if (impact) {
-        (v.shooter as Fighter).teleportTo(impact.x, impact.y - 2);
+  private byId(id: string): Combatant | undefined {
+    return this.combatants.find((c) => c.id === id);
+  }
+
+  private showEvent(pb: Playback, e: ShotTimeline['events'][number]) {
+    pb.sprites[(e as { flight?: number }).flight ?? -1]?.destroy();
+    switch (e.kind) {
+      case 'explode':
+        pb.outcome.impact ??= e.at;
+        this.showExplosion(e.at, e.radius, e.hits, pb);
+        break;
+      case 'teleport':
+        (this.byId(e.id) as Fighter).teleportTo(e.x, e.y);
         this.hud.banner('บินไปแล้ว!', '#bfe8ff');
-      } else {
-        this.hud.banner('จรวดกระดาษหลุดไป!', '#cccccc');
-      }
-      return;
-    }
-    if (!fl.proj.explodes) return;
-    if (!impact) {
-      if (v.flights.length === 1) this.hud.banner('พลาด!', '#cccccc');
-      return;
-    }
-    v.outcome.impact ??= impact;
-    const weapon = {
-      ...v.weapon,
-      damage: v.weapon.damage * fl.proj.damageMul * v.damageMul,
-      radius: Math.round(v.weapon.radius * fl.proj.radiusMul),
-    };
-    const isBolt = fl.proj.look === 'bolt';
-    v.outcome.hits.push(...this.explode(impact, directHitId, weapon, v.shooter, isBolt ? null : v.special));
-    // Lightning special: a bolt follows onto the same spot
-    if (v.special === 'strike' && !isBolt) this.launch({ ...strikeBolt(impact, this.terrain, this.targets(), v.shooter.id), delay: 25 });
-  }
-
-  private endVolley() {
-    const v = this.volley!;
-    this.volley = null;
-    this.skyMarker.setVisible(false);
-    this.phase = 'idle';
-    // Chlorophyll / osmosis: give back part of the damage dealt
-    if (v.special === 'drain' && this.skills.has(v.shooter)) {
-      const dealt = v.outcome.hits.filter((h) => h.target !== v.shooter).reduce((a, h) => a + h.damage, 0);
-      const back = Math.round(dealt * DRAIN_SHARE);
-      if (back > 0 && v.shooter.alive) {
-        (v.shooter as Fighter).heal(back);
-        this.floatText(v.shooter.x, v.shooter.y - v.shooter.height - 30, `+${back}`, '#7dff8a');
+        break;
+      case 'miss':
+        this.hud.banner(pb.timeline.flights[e.flight].look === 'plane' ? 'จรวดกระดาษหลุดไป!' : 'พลาด!', '#cccccc');
+        break;
+      case 'heal': {
+        const c = this.byId(e.id) as Fighter;
+        c.heal(e.amount);
+        this.floatText(c.x, c.y - c.height - 30, `+${e.amount}`, '#7dff8a');
         this.hud.refreshHp();
+        break;
       }
     }
-    v.resolve(v.outcome);
   }
 
-  private explode(at: Vec, directHitId: string | null, weapon: WeaponStats, shooter: Combatant, special: SpecialKind | null): ShotOutcome['hits'] {
+  private showExplosion(at: Vec, radius: number, hits: Hit[], pb: Playback) {
     const boom = this.add.sprite(at.x, at.y, 'fx/explosion_0').setDepth(DEPTH.fx);
-    boom.setScale((weapon.radius * 2.8) / 256);
+    boom.setScale((radius * 2.8) / 256);
     boom.play('explosion');
     this.cameras.main.shake(220, 0.008);
-
-    this.terrainView.carve(at.x, at.y, weapon.radius);
+    this.terrainView.carve(at.x, at.y, radius);
     this.hud.drawMinimap(this.terrain);
 
-    const hits: ShotOutcome['hits'] = [];
-    for (const c of this.combatants) {
-      if (!c.alive) continue;
-      const direct = c.id === directHitId;
-      let dmg = Math.round(blastDamage(at, c.toTarget(), weapon.radius, weapon.damage, direct));
-      if (dmg <= 0) continue;
-      dmg = this.modifyDamage(c, dmg);
-      c.takeDamage(dmg);
-      hits.push({ target: c, damage: dmg });
-      this.floatText(c.x, c.y - c.height - 30, `-${dmg}`, direct ? '#ffdd33' : '#ff5544');
-      if (c === shooter) continue;
-      this.addGauge(shooter, GAUGE_HIT);
-      this.addGauge(c, GAUGE_HURT);
-      if (special === 'burn' && c.alive) {
+    for (const h of hits) {
+      const c = this.byId(h.id);
+      if (!c || !c.alive) continue;
+      c.takeDamage(h.damage);
+      pb.outcome.hits.push({ target: c, damage: h.damage });
+      this.floatText(c.x, c.y - c.height - 30, `-${h.damage}`, h.direct ? '#ffdd33' : '#ff5544');
+      if (c !== pb.shooter) {
+        this.addGauge(pb.shooter, GAUGE_HIT);
+        this.addGauge(c, GAUGE_HURT);
+      }
+      if (h.burn) {
         this.burns.set(c, BURN_TURNS);
         this.floatText(c.x, c.y - c.height - 80, 'ติดไฟ!', '#ff8844');
       }
-      if (special === 'push' && c.alive) this.push(c, at, weapon.radius);
+      if (h.pushTo !== undefined) this.tweens.add({ targets: c, x: h.pushTo, duration: 350, ease: 'Cubic.out', onUpdate: () => c.sync() });
+      this.onHit(c, h);
     }
-    if (directHitId) this.hud.banner('โดนเต็ม ๆ!', '#ffdd33');
+    if (hits.some((h) => h.direct)) this.hud.banner('โดนเต็ม ๆ!', '#ffdd33');
     this.hud.refreshHp();
-    this.onExplosion(at, weapon.radius, shooter);
-    return hits;
+    this.onExplosion(at, radius, pb.shooter);
   }
 
-  /** Tornado special: blow the target away from the blast (big bosses move less) */
-  private push(c: Combatant, from: Vec, radius: number) {
-    const hitR = c.toTarget().radius ?? BODY_RADIUS;
-    const dir = Math.sign(c.x - from.x) || 1;
-    const near = Math.max(0.3, 1 - Math.abs(c.x - from.x) / (radius + hitR));
-    const dist = PUSH_DISTANCE * near * Math.min(1, BODY_RADIUS / hitR);
-    const goal = Phaser.Math.Clamp(c.x + dir * dist, 0, WORLD_WIDTH - 1);
-    // Slide sideways, stopping at a hill in the way
-    let x = c.x;
-    while (Math.abs(goal - x) >= 4 && !this.terrain.isSolid(x + dir * 4, c.y - 24)) x += dir * 4;
-    this.tweens.add({ targets: c, x, duration: 350, ease: 'Cubic.out', onUpdate: () => c.sync() });
-  }
-
-  /** Hook: change damage before it's applied (e.g. shields) */
+  /** Hook: change damage before it lands (e.g. shields). Called while the shot is worked out. */
   protected modifyDamage(_target: Combatant, damage: number): number {
     return damage;
   }
+
+  /** Hook: a hit is shown on screen */
+  protected onHit(_target: Combatant, _hit: Hit) {}
 
   /** Hook: something else may react to a blast (e.g. question crates) */
   protected onExplosion(_at: Vec, _radius: number, _shooter: Combatant) {}
@@ -597,8 +585,12 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   protected newWind() {
     // Beginners get gentler wind; the HUD shows the real (reduced) value
-    this.wind = Math.round(this.rng.range(-MAX_WIND, MAX_WIND) * windFactor(this.assistLevel));
-    this.hud.setWind(this.wind);
+    this.setWind(Math.round(this.rng.range(-MAX_WIND, MAX_WIND) * windFactor(this.assistLevel)));
+  }
+
+  protected setWind(wind: number) {
+    this.wind = wind;
+    this.hud.setWind(wind);
   }
 
   protected focusOn(c: Combatant) {
@@ -698,16 +690,19 @@ export abstract class ArenaScene extends Phaser.Scene {
       this.drawGuide(f);
       this.skillBar.fadeIfCovering(f.x - this.cameras.main.scrollX, f.y - f.height, f.y);
     }
-    if (this.phase === 'flying' && this.volley) this.updateVolley(dt);
+    if (this.phase === 'flying' && this.playback) this.updatePlayback(dt);
 
     const cam = this.cameras.main;
     if (this.camTarget) {
       const goal = this.camTarget.x - GAME_WIDTH / 2;
       cam.scrollX += (goal - cam.scrollX) * Math.min(1, dt * 5);
     }
-    const flying = this.volley?.flights.find((fl) => !fl.done && fl.sprite.visible)?.sprite ?? null;
+    const flying = this.playback?.sprites.find((s) => s.active && s.visible) ?? null;
     this.hud.updateMinimap(this.terrain.height, cam.scrollX, GAME_WIDTH, flying);
   }
+
+  /** Hook: the human moved, turned or aimed (online games tell the other player) */
+  protected onHumanMoved(_f: Fighter) {}
 
   private updateHumanInput(dt: number) {
     const f = this.human;
@@ -728,15 +723,18 @@ export abstract class ArenaScene extends Phaser.Scene {
       return;
     }
 
+    let moved = false;
     const move = this.controls.moveDir;
     if (move !== 0) {
       if (this.walkLeft > 0 && !f.falling) {
         const step = Math.min(WALK_SPEED * dt, this.walkLeft);
         if (f.walk(move, step, this.terrain)) this.walkLeft -= step;
         this.hud.setStamina(this.walkLeft / WALK_PER_TURN);
+        moved = true;
       } else if (f.facing !== move) {
         f.facing = move; // can always turn around
         f.sync();
+        moved = true;
       }
       if (!this.panning) this.camTarget = f;
     }
@@ -746,7 +744,9 @@ export abstract class ArenaScene extends Phaser.Scene {
       f.angle = Phaser.Math.Clamp(f.angle + aim * AIM_SPEED * dt, 0, 90);
       f.sync();
       this.hud.setAngle(f.angle);
+      moved = true;
     }
+    if (moved) this.onHumanMoved(f);
   }
 
   /**
@@ -762,8 +762,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.guideKey = key;
 
     // Armed skills change the flight (no wind, rocket, paper plane...); the Ultimate shows the whole path
-    const armed = this.skills.get(f)?.armed ?? null;
-    const mode: ShotMode = armed === 'plane' || armed === 'special' || armed === 'ultimate' ? armed : 'normal';
+    const mode = shotModeFor(this.skills.get(f)?.armed ?? null);
     const special = mode === 'special' ? weaponSpecial(f.weapon.id).kind : null;
     const input = { x: m.x, y: m.y, angleDeg: f.angle, facing: f.facing, power, wind: this.wind };
     const shot = fly(launchState(input), flightOptions(mode, special, this.wind), this.terrain, [], f.id);

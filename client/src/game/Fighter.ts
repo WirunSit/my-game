@@ -1,18 +1,12 @@
 import * as Phaser from 'phaser';
-import { BODY_OFFSET_Y, BODY_RADIUS, EMPTY_OUTFIT, WORLD_HEIGHT, WORLD_WIDTH, type Character, type Outfit, type ShotTarget, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
+import { BODY_OFFSET_Y, BODY_RADIUS, CLIMB, EMPTY_OUTFIT, HAND_X, HAND_Y, fighterMuzzle, WORLD_HEIGHT, WORLD_WIDTH, type Character, type Outfit, type ShotTarget, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, TEXT_STROKE } from '../config';
 import type { Combatant } from './Combatant';
 import { Costume, type Pose } from './Costume';
 
 const BODY_HEIGHT = 96;
 const WEAPON_WIDTH = 78;
-/** Hand position relative to the feet, for a character facing right */
-const HAND_X = 26;
-const HAND_Y = -56;
-const MUZZLE_DISTANCE = 46;
 const FALL_GRAVITY = 1400;
-/** Highest step a fighter can walk up, px */
-const CLIMB = 20;
 
 /** How a fighter looks: base character plus what they wear */
 export interface FighterLook {
@@ -132,11 +126,7 @@ export class Fighter implements Combatant {
 
   /** Where the shot leaves the barrel, in world coordinates */
   muzzle(): Vec {
-    const rad = Phaser.Math.DegToRad(this.angle);
-    return {
-      x: this.x + this.facing * (HAND_X + Math.cos(rad) * MUZZLE_DISTANCE),
-      y: this.y + HAND_Y - Math.sin(rad) * MUZZLE_DISTANCE,
-    };
+    return fighterMuzzle(this.x, this.y, this.facing, this.angle);
   }
 
   setActive(active: boolean) {

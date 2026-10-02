@@ -13,6 +13,7 @@ import {
   stageRewards,
   weaponDef,
   weaponStats,
+  type Hit,
   type Vec,
 } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
@@ -245,11 +246,17 @@ export class StageScene extends ArenaScene {
   protected modifyDamage(target: Combatant, damage: number): number {
     if (target === this.player && this.shield) {
       this.shield = false;
-      this.updateStatus();
-      this.hud.banner('โล่ช่วยไว้!', '#7dd3ff');
       return Math.round(damage / 2);
     }
     return damage;
+  }
+
+  /** The shield was used up when the shot was worked out; tell the player when it actually lands */
+  protected onHit(target: Combatant, hit: Hit) {
+    if (target === this.player && hit.reduced) {
+      this.updateStatus();
+      this.hud.banner('โล่ช่วยไว้!', '#7dd3ff');
+    }
   }
 
   protected onExplosion(at: Vec, radius: number, shooter: Combatant) {

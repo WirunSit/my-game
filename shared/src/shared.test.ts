@@ -266,3 +266,98 @@ test('a lightning bolt falls straight onto the impact point', () => {
   assert.ok(Math.abs(bolt.result.impact!.x - 900) < 1);
   assert.ok(Math.abs(bolt.result.impact!.y - t.groundBelow(900, 0)!) < 3);
 });
+
+// ---- Battle engine ---------------------------------------------------------------------
+import { fighterMuzzle, gaugeGains, newFighterUnit, newSkillState, resolveShot, skillBlocker, spendSkill, startSkillTurn, tickBurn, type ShotRequest } from './index';
+
+const duel = () => {
+  const t = Terrain.generate(9);
+  const a = newFighterUnit('a', 400, t.groundBelow(400, 0)!);
+  const b = newFighterUnit('b', 1500, t.groundBelow(1500, 0)!);
+  return { t, a, b };
+};
+/** Aim from a at b by trying powers until a shell lands on b */
+const aimAt = (t: Terrain, a: ReturnType<typeof newFighterUnit>, b: ReturnType<typeof newFighterUnit>, mode: ShotRequest['mode'] = 'normal', special: ShotRequest['special'] = null): ShotRequest => {
+  let best: ShotRequest | null = null;
+  let bestD = Infinity;
+  for (let power = 30; power <= 100; power += 0.5) {
+    const m = fighterMuzzle(a.x, a.y, 1, 50);
+    const req: ShotRequest = { shooterId: 'a', input: { ...m, angleDeg: 50, facing: 1, power, wind: 0 }, mode: 'normal', special: null, damage: 240, radius: 52, damageMul: 1 };
+    const r = resolveShot(t, [{ ...a }, { ...b }], req);
+    const ex = r.events.find((e) => e.kind === 'explode');
+    if (ex && ex.kind === 'explode') {
+      const d = Math.abs(ex.at.x - b.x);
+      if (d < bestD) {
+        bestD = d;
+        best = req;
+      }
+    }
+  }
+  return { ...best!, mode, special };
+};
+
+test('a shot on target damages, carves a copy of the map, and fills the gauge', () => {
+  const { t, a, b } = duel();
+  const req = aimAt(t, a, b);
+  const r = resolveShot(t, [a, b], req);
+  assert.ok(b.hp < 1000, 'b took damage');
+  assert.ok((gaugeGains(r, 'a').get('a') ?? 0) > 0);
+  // Without b in the way the same shell lands on the ground: the crater goes on a copy only
+  const before = t.mask.reduce((s, v) => s + v, 0);
+  const ground = resolveShot(t, [a], req);
+  assert.equal(t.mask.reduce((s, v) => s + v, 0), before, 'original map untouched');
+  assert.ok(ground.terrain.mask.reduce((s, v) => s + v, 0) < before, 'copy has a crater');
+});
+
+test('burn special sets the target on fire; burning hurts at turn start', () => {
+  const { t, a, b } = duel();
+  resolveShot(t, [a, b], aimAt(t, a, b, 'special', 'burn'));
+  assert.equal(b.burn, 2);
+  const hp = b.hp;
+  assert.equal(tickBurn(b), 60);
+  assert.equal(b.hp, hp - 60);
+  assert.equal(b.burn, 1);
+});
+
+test('the paper plane moves the shooter to where it lands', () => {
+  const { t, a, b } = duel();
+  const r = resolveShot(t, [a, b], aimAt(t, a, b, 'plane'));
+  const tp = r.events.find((e) => e.kind === 'teleport');
+  assert.ok(tp && Math.abs(a.x - 400) > 100);
+  assert.equal(b.hp, 1000, 'no damage');
+});
+
+test('lightning strike adds a bolt after the first blast', () => {
+  const { t, a, b } = duel();
+  const r = resolveShot(t, [a, b], aimAt(t, a, b, 'special', 'strike'));
+  assert.equal(r.flights.length, 2);
+  assert.equal(r.events.filter((e) => e.kind === 'explode').length, 2);
+});
+
+test('shields can lower damage through the hook', () => {
+  const { t, a, b } = duel();
+  const r = resolveShot(t, [a, b], aimAt(t, a, b), { modifyDamage: (id, d) => (id === 'b' ? Math.round(d / 2) : d) });
+  const hit = r.events.flatMap((e) => (e.kind === 'explode' ? e.hits : [])).find((h) => h.id === 'b')!;
+  assert.ok(hit.reduced);
+});
+
+test('skills: one per turn, limited uses, special cooldown', () => {
+  const s = newSkillState(true);
+  assert.equal(skillBlocker(s, 'heal', true), 'full');
+  spendSkill(s, 'special');
+  assert.equal(skillBlocker(s, 'double', false), 'used');
+  startSkillTurn(s);
+  assert.equal(skillBlocker(s, 'special', false), 'cooldown');
+  startSkillTurn(s);
+  startSkillTurn(s);
+  assert.equal(skillBlocker(s, 'special', false), null);
+  assert.equal(skillBlocker(s, 'ultimate', false), 'gauge');
+  assert.equal(skillBlocker(newSkillState(false), 'special', false), 'locked');
+});
+
+test('terrain encodes and decodes exactly', () => {
+  const t = Terrain.generate(3);
+  t.carve(700, 400, 60);
+  const back = Terrain.decode(t.encode());
+  assert.deepEqual(back.mask, t.mask);
+});

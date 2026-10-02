@@ -1,9 +1,7 @@
 import * as Phaser from 'phaser';
-import { ITEM_SKILLS, ITEM_SKILL_ORDER, type ItemSkill } from '@sciboom/shared';
+import { ITEM_SKILLS, SKILL_SLOTS, type SkillSlot } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 
-export type SkillSlot = ItemSkill | 'special' | 'ultimate';
-export const SKILL_SLOTS: SkillSlot[] = [...ITEM_SKILL_ORDER, 'special', 'ultimate'];
 
 export interface SlotState {
   enabled: boolean;
