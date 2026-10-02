@@ -4,7 +4,7 @@ import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
 import { Crate } from '../game/Crate';
 import { Enemy } from '../game/Enemy';
-import { Fighter, LOOKS } from '../game/Fighter';
+import { Fighter } from '../game/Fighter';
 import { UNITS } from '../game/questionBank';
 import { STAGES, nextStage, stageById, type StageConfig } from '../game/stages';
 import { equippedWeapon, loadSave, newUid, updateSave } from '../save';
@@ -59,7 +59,7 @@ export class StageScene extends ArenaScene {
     const save = loadSave();
     const px = 260 + this.rng.int(0, 100);
     const ex = WORLD_WIDTH - 300;
-    this.player = new Fighter(this, 'player', 'คุณ', px, ground(px), 1, LOOKS[save.character], weaponStats(equippedWeapon(save)), 0x3a8dde);
+    this.player = new Fighter(this, 'player', 'คุณ', px, ground(px), 1, { character: save.character, outfit: save.outfit }, weaponStats(equippedWeapon(save)), 0x3a8dde);
     this.enemy = new Enemy(this, 'enemy', this.stage.enemy, ex, ground(ex));
     this.enemySkill = this.stage.enemy.skill;
     this.combatants = [this.player, this.enemy];

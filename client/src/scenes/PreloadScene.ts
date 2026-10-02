@@ -37,6 +37,8 @@ export class PreloadScene extends Phaser.Scene {
       frameRate: 16,
       hideOnComplete: true,
     });
-    this.scene.start('Menu');
+    // ?costumes opens the developer page for checking where hats and glasses sit
+    const sheet = import.meta.env.DEV && new URLSearchParams(location.search).has('costumes');
+    this.scene.start(sheet ? 'CostumeSheet' : 'Menu');
   }
 }

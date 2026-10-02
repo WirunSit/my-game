@@ -1,7 +1,8 @@
 import * as Phaser from 'phaser';
-import { BODY_OFFSET_Y, BODY_RADIUS, WORLD_HEIGHT, WORLD_WIDTH, type ShotTarget, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
+import { BODY_OFFSET_Y, BODY_RADIUS, EMPTY_OUTFIT, WORLD_HEIGHT, WORLD_WIDTH, type Character, type Outfit, type ShotTarget, type Terrain, type Vec, type WeaponStats } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, TEXT_STROKE } from '../config';
 import type { Combatant } from './Combatant';
+import { Costume, type Pose } from './Costume';
 
 const BODY_HEIGHT = 96;
 const WEAPON_WIDTH = 78;
@@ -13,17 +14,15 @@ const FALL_GRAVITY = 1400;
 /** Highest step a fighter can walk up, px */
 const CLIMB = 20;
 
+/** How a fighter looks: base character plus what they wear */
 export interface FighterLook {
-  side: string;
-  hurt: string;
-  win: string;
-  portrait: string;
+  character: Character;
+  outfit: Outfit;
 }
 
-export const LOOKS: Record<'boy' | 'girl', FighterLook> = {
-  boy: { side: 'characters/boy_side', hurt: 'characters/boy_hurt', win: 'characters/boy_win', portrait: 'characters/boy_front' },
-  girl: { side: 'characters/girl_side', hurt: 'characters/girl_hurt', win: 'characters/girl_win', portrait: 'characters/girl_front' },
-};
+export function plainLook(character: Character): FighterLook {
+  return { character, outfit: { ...EMPTY_OUTFIT } };
+}
 
 /** One player character on the battlefield: position, aim, health and sprites */
 export class Fighter implements Combatant {
@@ -38,7 +37,7 @@ export class Fighter implements Combatant {
   private vy = 0;
 
   private readonly root: Phaser.GameObjects.Container;
-  private readonly body: Phaser.GameObjects.Image;
+  private readonly costume: Costume;
   private readonly weaponImg: Phaser.GameObjects.Image;
   private readonly aimLine: Phaser.GameObjects.Graphics;
   private readonly nameTag: Phaser.GameObjects.Text;
@@ -57,14 +56,13 @@ export class Fighter implements Combatant {
     public weapon: WeaponStats,
     readonly color: number,
   ) {
-    this.body = scene.add.image(0, 0, look.side).setOrigin(0.5, 1);
-    this.body.setScale(BODY_HEIGHT / this.body.height);
+    this.costume = new Costume(scene, look.character, look.outfit, BODY_HEIGHT);
 
     this.weaponImg = scene.add.image(HAND_X, HAND_Y, `weapons/${weapon.id}`).setOrigin(0.32, 0.62);
     this.weaponImg.setScale(WEAPON_WIDTH / this.weaponImg.width);
 
     this.aimLine = scene.add.graphics();
-    this.root = scene.add.container(x, y, [this.aimLine, this.body, this.weaponImg]).setDepth(DEPTH.fighter);
+    this.root = scene.add.container(x, y, [this.aimLine, this.costume.root, this.weaponImg]).setDepth(DEPTH.fighter);
 
     this.nameTag = scene.add
       .text(x, y - BODY_HEIGHT - 14, name, {
@@ -87,7 +85,7 @@ export class Fighter implements Combatant {
   }
 
   get portraitKey(): string {
-    return this.look.portrait;
+    return `characters/${this.look.character}_front`;
   }
 
   toTarget(): ShotTarget {
@@ -156,11 +154,10 @@ export class Fighter implements Combatant {
 
   takeDamage(amount: number) {
     this.hp = Math.max(0, this.hp - amount);
-    this.body.setTexture(this.look.hurt).setScale(BODY_HEIGHT / this.scene.textures.getFrame(this.look.hurt).height);
-    this.weaponImg.setVisible(false);
+    this.showPose('hurt', false);
     this.hurtTimer?.remove();
     this.hurtTimer = this.scene.time.delayedCall(700, () => {
-      if (this.alive) this.showPose(this.look.side, true);
+      if (this.alive) this.showPose('side', true);
     });
     if (this.hp <= 0) this.die();
   }
@@ -170,23 +167,28 @@ export class Fighter implements Combatant {
     this.alive = false;
     this.hp = 0;
     this.hurtTimer?.remove();
-    this.showPose(this.look.hurt, false);
+    this.showPose('hurt', false);
     this.marker.setVisible(false);
     this.drawAim(false);
     this.scene.tweens.add({ targets: [this.root, this.nameTag], alpha: 0.45, duration: 600 });
   }
 
   celebrate() {
-    this.showPose(this.look.win, false);
+    this.showPose('win', false);
     this.marker.setVisible(false);
     this.drawAim(false);
     this.scene.tweens.add({ targets: this.root, y: this.y - 24, duration: 280, yoyo: true, repeat: -1, ease: 'Quad.out' });
   }
 
-  private showPose(texture: string, weaponVisible: boolean) {
-    this.body.setTexture(texture);
-    this.body.setScale(BODY_HEIGHT / this.scene.textures.getFrame(texture).height);
+  private showPose(pose: Pose, weaponVisible: boolean) {
+    this.costume.setPose(pose);
     this.weaponImg.setVisible(weaponVisible);
+    // Suits without their own hurt picture blink and shake instead (tint would not show in Canvas mode)
+    if (pose === 'hurt' && !this.costume.posed) {
+      const root = this.costume.root;
+      this.scene.tweens.add({ targets: root, x: { from: -6, to: 6 }, duration: 60, yoyo: true, repeat: 3, onComplete: () => root.setX(0) });
+      this.scene.tweens.add({ targets: root, alpha: 0.35, duration: 90, yoyo: true, repeat: 2, onComplete: () => root.setAlpha(1) });
+    }
   }
 
   /** Move sprites to match x/y/facing/angle */
