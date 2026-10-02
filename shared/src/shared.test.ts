@@ -196,3 +196,22 @@ test('level-ups report the items they unlock', () => {
   assert.equal(newlyUnlocked(1, 2).length, 0);
   assert.equal(newlyUnlocked(0, 30).length, COSMETIC_CATALOG.length);
 });
+
+// ---- Beginner assist ---------------------------------------------------------------
+import { aimGuideLength, pathPrefix, windFactor } from './index';
+
+test('the aim guide gets shorter and the wind stronger as the player levels up', () => {
+  assert.ok(aimGuideLength(1) > aimGuideLength(10));
+  assert.ok(aimGuideLength(10) > aimGuideLength(20));
+  assert.equal(aimGuideLength(20), aimGuideLength(30), 'stays short after Lv20');
+  assert.ok(aimGuideLength(30) > 0, 'always a short aiming hint');
+  assert.ok(windFactor(1) < windFactor(8));
+  assert.equal(windFactor(15), 1);
+  assert.equal(windFactor(30), 1);
+});
+
+test('path prefix cuts a path to a length along the curve', () => {
+  const path = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }];
+  assert.deepEqual(pathPrefix(path, 15), [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }]);
+  assert.deepEqual(pathPrefix(path, 100), path);
+});

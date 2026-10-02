@@ -6,3 +6,4 @@ export * from './questions';
 export * from './ai';
 export * from './progression';
 export * from './cosmetics';
+export * from './assist';

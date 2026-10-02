@@ -6,8 +6,11 @@ import {
   Terrain,
   WORLD_HEIGHT,
   WORLD_WIDTH,
+  aimGuideLength,
   blastDamage,
+  pathPrefix,
   simulateShot,
+  windFactor,
   type ShotResult,
   type Vec,
   type WeaponStats,
@@ -20,12 +23,14 @@ import { TerrainView } from '../game/TerrainView';
 import { Controls } from '../ui/Controls';
 import { Hud } from '../ui/Hud';
 import { addTextButton } from '../ui/TextButton';
+import { loadSave } from '../save';
 
 const TURN_SECONDS = 20;
 const WALK_SPEED = 110; // px/s
 const WALK_PER_TURN = 220; // px of walking allowed per turn
 const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 const CHARGE_SPEED = 65; // power/s while holding fire (0→100 in ~1.5 s)
+const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
 
 export type Phase = 'idle' | 'aiming' | 'charging' | 'flying' | 'quiz' | 'over';
 
@@ -67,6 +72,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected phase: Phase = 'idle';
   protected wind = 0;
   protected turn = 0;
+  /** Player level that sets the beginner help (aim guide length, gentler wind) */
+  protected assistLevel = 1;
 
   private timeLeft = 0;
   private walkLeft = 0;
@@ -75,6 +82,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   private resolveHuman: ((power: number | null) => void) | null = null;
   private flight: Flight | null = null;
   private skyMarker!: Phaser.GameObjects.Triangle;
+  private guide!: Phaser.GameObjects.Graphics;
+  private guideKey = '';
   private panning = false;
   private camTarget: Combatant | null = null;
   /** Bumped when the scene shuts down so an old match loop stops */
@@ -98,6 +107,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.camTarget = null;
     this.panning = false;
     this.rng = new Rng(seed);
+    this.assistLevel = loadSave().level;
+    this.guideKey = '';
     this.events.once('shutdown', () => this.matchToken++);
 
     drawArtBackground(this, backgroundKey, WORLD_WIDTH);
@@ -109,6 +120,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x1b1d3a)
       .setDepth(DEPTH.fx)
       .setVisible(false);
+    this.guide = this.add.graphics().setDepth(DEPTH.projectile);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.setupCameraDrag();
     return terrain;
@@ -193,6 +205,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     const resolve = this.resolveHuman;
     this.resolveHuman = null;
     this.human?.setActive(false);
+    this.guide.clear();
+    this.guideKey = '';
     if (power !== null && this.human) this.human.lastPower = power;
     this.human = null;
     this.phase = 'idle';
@@ -301,7 +315,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   }
 
   protected newWind() {
-    this.wind = Math.round(this.rng.range(-MAX_WIND, MAX_WIND));
+    // Beginners get gentler wind; the HUD shows the real (reduced) value
+    this.wind = Math.round(this.rng.range(-MAX_WIND, MAX_WIND) * windFactor(this.assistLevel));
     this.hud.setWind(this.wind);
   }
 
@@ -397,6 +412,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     }
 
     if (this.phase === 'aiming' || this.phase === 'charging') this.updateHumanInput(dt);
+    if ((this.phase === 'aiming' || this.phase === 'charging') && this.human) this.drawGuide(this.human);
     if (this.phase === 'flying' && this.flight) this.updateFlight(dt);
 
     const cam = this.cameras.main;
@@ -444,6 +460,41 @@ export abstract class ArenaScene extends Phaser.Scene {
       f.angle = Phaser.Math.Clamp(f.angle + aim * AIM_SPEED * dt, 0, 90);
       f.sync();
       this.hud.setAngle(f.angle);
+    }
+  }
+
+  /**
+   * Dotted guide along the real path of the shot (wind included) from the barrel.
+   * Uses the power being charged, or the previous shot's power while aiming.
+   * Long for beginners, shrinking with level to a short aiming hint.
+   */
+  private drawGuide(f: Fighter) {
+    const power = this.phase === 'charging' ? this.power : (f.lastPower ?? 50);
+    const m = f.muzzle();
+    const key = `${m.x | 0},${m.y | 0},${f.angle.toFixed(1)},${f.facing},${power | 0},${this.wind}`;
+    if (key === this.guideKey) return;
+    this.guideKey = key;
+
+    const shot = simulateShot({ x: m.x, y: m.y, angleDeg: f.angle, facing: f.facing, power, wind: this.wind }, this.terrain, [], f.id);
+    const length = aimGuideLength(this.assistLevel);
+    const path = pathPrefix(shot.path, length);
+    const g = this.guide;
+    g.clear();
+    // One dot every GUIDE_DOT_GAP px along the curve, fading towards the end
+    let next = GUIDE_DOT_GAP / 2;
+    let walked = 0;
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1];
+      const b = path[i];
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      while (d > 0 && next <= walked + d) {
+        const t = (next - walked) / d;
+        const fade = 1 - next / length;
+        g.fillStyle(0x1b1d3a, 0.5 * fade + 0.15).fillCircle(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 6);
+        g.fillStyle(0xffffff, 0.75 * fade + 0.25).fillCircle(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 4);
+        next += GUIDE_DOT_GAP;
+      }
+      walked += d;
     }
   }
 

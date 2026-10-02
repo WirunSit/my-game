@@ -39,7 +39,6 @@ export class Fighter implements Combatant {
   private readonly root: Phaser.GameObjects.Container;
   private readonly costume: Costume;
   private readonly weaponImg: Phaser.GameObjects.Image;
-  private readonly aimLine: Phaser.GameObjects.Graphics;
   private readonly nameTag: Phaser.GameObjects.Text;
   private readonly marker: Phaser.GameObjects.Triangle;
   private hurtTimer?: Phaser.Time.TimerEvent;
@@ -61,8 +60,7 @@ export class Fighter implements Combatant {
     this.weaponImg = scene.add.image(HAND_X, HAND_Y, `weapons/${weapon.id}`).setOrigin(0.32, 0.62);
     this.weaponImg.setScale(WEAPON_WIDTH / this.weaponImg.width);
 
-    this.aimLine = scene.add.graphics();
-    this.root = scene.add.container(x, y, [this.aimLine, this.costume.root, this.weaponImg]).setDepth(DEPTH.fighter);
+    this.root = scene.add.container(x, y, [this.costume.root, this.weaponImg]).setDepth(DEPTH.fighter);
 
     this.nameTag = scene.add
       .text(x, y - BODY_HEIGHT - 14, name, {
@@ -113,7 +111,6 @@ export class Fighter implements Combatant {
 
   setActive(active: boolean) {
     this.marker.setVisible(active && this.alive);
-    this.drawAim(active && this.alive);
   }
 
   /** Walk sideways. Returns false if a wall blocks the way. */
@@ -169,14 +166,12 @@ export class Fighter implements Combatant {
     this.hurtTimer?.remove();
     this.showPose('hurt', false);
     this.marker.setVisible(false);
-    this.drawAim(false);
     this.scene.tweens.add({ targets: [this.root, this.nameTag], alpha: 0.45, duration: 600 });
   }
 
   celebrate() {
     this.showPose('win', false);
     this.marker.setVisible(false);
-    this.drawAim(false);
     this.scene.tweens.add({ targets: this.root, y: this.y - 24, duration: 280, yoyo: true, repeat: -1, ease: 'Quad.out' });
   }
 
@@ -198,18 +193,5 @@ export class Fighter implements Combatant {
     this.weaponImg.rotation = -Phaser.Math.DegToRad(this.angle);
     this.nameTag.setPosition(this.x, this.y - BODY_HEIGHT - 10);
     this.marker.setPosition(this.x, this.y - BODY_HEIGHT - 52);
-    if (this.marker.visible) this.drawAim(true);
-  }
-
-  /** Dotted aim guide from the hand (no full trajectory — judging that is the skill!) */
-  private drawAim(show: boolean) {
-    const g = this.aimLine;
-    g.clear();
-    if (!show) return;
-    const rad = Phaser.Math.DegToRad(this.angle);
-    g.fillStyle(0xffffff, 0.9);
-    for (let d = 60; d <= 130; d += 14) {
-      g.fillCircle(HAND_X + Math.cos(rad) * d, HAND_Y - Math.sin(rad) * d, d === 130 ? 5 : 3.5);
-    }
   }
 }
