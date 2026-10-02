@@ -1,0 +1,13 @@
+{
+  "name": "sciboom",
+  "private": true,
+  "description": "SciBoom! — artillery game for Thai grade 7 science",
+  "workspaces": [
+    "client"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "typecheck": "npm run typecheck -w client"
+  }
+}
