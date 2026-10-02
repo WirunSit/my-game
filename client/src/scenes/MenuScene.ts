@@ -2,6 +2,8 @@ import * as Phaser from 'phaser';
 import { FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { addTextButton } from '../ui/TextButton';
 import { drawArtBackground } from '../game/background';
+import { logout } from '../net/account';
+import { session } from '../net/session';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -50,7 +52,21 @@ export class MenuScene extends Phaser.Scene {
         color: 0x3a8dde,
       });
     }
+    this.accountBox();
+  }
 
+  /** Top-left: who is playing, with log in / log out */
+  private accountBox() {
+    const style = { fontFamily: FONT_FAMILY, fontSize: '22px', fontStyle: '700', color: '#ffffff', stroke: TEXT_STROKE, strokeThickness: 4, padding: { top: 6 } };
+    const p = session.profile;
+    if (p && session.token) {
+      this.add.text(24, 22, `สวัสดี ${p.nickname}`, { ...style, color: '#ffcc33' });
+      this.add.text(24, 56, `${p.classroom.name} เลขที่ ${p.number}`, { ...style, fontSize: '18px' });
+      addTextButton(this, 110, 118, 'ออกจากระบบ', () => void logout().then(() => this.scene.restart()), { width: 180, height: 46, fontSize: 18, color: 0x8a8fa8 });
+    } else {
+      this.add.text(24, 22, 'ยังไม่ได้เข้าสู่ระบบ', { ...style, fontSize: '18px' });
+      addTextButton(this, 120, 80, 'เข้าสู่ระบบ', () => this.scene.start('Login'), { width: 200, height: 54, fontSize: 22, color: 0xff8a1f });
+    }
   }
 
   private goFullscreen() {

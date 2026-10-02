@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 // Google Cloud Shell sets CLOUD_SHELL=true. Its Web Preview proxies
@@ -7,6 +8,15 @@ const inCloudShell = process.env.CLOUD_SHELL === 'true';
 
 export default defineConfig({
   base: './', // relative paths so the build works from any folder
+  build: {
+    // Two pages: the game (index.html) and the teacher pages (teacher.html)
+    rolldownOptions: {
+      input: {
+        main: fileURLToPath(new URL('index.html', import.meta.url)),
+        teacher: fileURLToPath(new URL('teacher.html', import.meta.url)),
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 8080,

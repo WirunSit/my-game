@@ -3,6 +3,7 @@ import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
 import { STAGES, WORLDS, isUnlocked } from '../game/stages';
 import { loadSave, updateSave, type Character } from '../save';
+import { isWorldOpen } from '../net/session';
 import { addTextButton } from '../ui/TextButton';
 
 const text = (size: number, color = '#ffffff'): Phaser.Types.GameObjects.Text.TextStyle => ({
@@ -93,7 +94,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     stages.forEach((s, i) => {
       const x = xs[i];
-      const open = isUnlocked(s.id, stars);
+      const open = isUnlocked(s.id, stars) && isWorldOpen(w.id);
       const icon = this.add.image(x, y + 50, s.enemy.texture).setOrigin(0.5, 1);
       icon.setScale((s.isBoss ? 150 : 100) / icon.height);
       if (!open) icon.setAlpha(0.3);

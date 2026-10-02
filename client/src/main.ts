@@ -4,6 +4,7 @@ import { BattleScene } from './scenes/BattleScene';
 import { CostumeSheetScene } from './scenes/CostumeSheetScene';
 import { InventoryScene } from './scenes/InventoryScene';
 import { LobbyScene } from './scenes/LobbyScene';
+import { LoginScene } from './scenes/LoginScene';
 import { MenuScene } from './scenes/MenuScene';
 import { OnlineBattleScene } from './scenes/OnlineBattleScene';
 import { PreloadScene } from './scenes/PreloadScene';
@@ -53,7 +54,7 @@ async function start() {
     },
     input: { activePointers: 3 }, // multi-touch: move + aim + fire on phones
     dom: { createContainer: true }, // real text boxes (room codes, login)
-    scene: [PreloadScene, MenuScene, WorldMapScene, StageScene, InventoryScene, WardrobeScene, BattleScene, LobbyScene, OnlineBattleScene, CostumeSheetScene],
+    scene: [PreloadScene, MenuScene, LoginScene, WorldMapScene, StageScene, InventoryScene, WardrobeScene, BattleScene, LobbyScene, OnlineBattleScene, CostumeSheetScene],
   });
   // Let the automated playtest (tools/playtest.mjs) peek at the game while developing
   if (import.meta.env.DEV) (window as unknown as { game: Phaser.Game }).game = game;

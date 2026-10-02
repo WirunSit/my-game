@@ -11,6 +11,7 @@
     "playtest:wardrobe": "node playtest-wardrobe.mjs",
     "playtest:skills": "node playtest-skills.mjs",
     "playtest:online": "node playtest-online.mjs",
+    "playtest:accounts": "node playtest-accounts.mjs",
     "costumes": "node costumes.mjs"
   },
   "devDependencies": {

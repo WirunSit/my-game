@@ -1,5 +1,7 @@
 import * as Phaser from 'phaser';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
+import { loadServerQuestions } from '../game/questionBank';
+import { restoreLogin } from '../net/account';
 
 interface ManifestEntry {
   key: string;
@@ -30,7 +32,7 @@ export class PreloadScene extends Phaser.Scene {
     });
   }
 
-  create() {
+  async create() {
     this.anims.create({
       key: 'explosion',
       frames: [0, 1, 2, 3, 4, 5].map((i) => ({ key: `fx/explosion_${i}` })),
@@ -40,6 +42,13 @@ export class PreloadScene extends Phaser.Scene {
     this.makePaperPlane();
     // ?costumes opens the developer page for checking where hats and glasses sit
     const sheet = import.meta.env.DEV && new URLSearchParams(location.search).has('costumes');
+    if (!sheet) {
+      // Latest questions (teacher's edits) and the student's progress, if the server is reachable
+      this.add
+        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 60, 'กำลังโหลดข้อมูลผู้เล่น...', { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#bfe8ff' })
+        .setOrigin(0.5);
+      await Promise.all([restoreLogin(), loadServerQuestions()]);
+    }
     this.scene.start(sheet ? 'CostumeSheet' : 'Menu');
   }
 

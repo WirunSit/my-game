@@ -1,10 +1,11 @@
 import * as Phaser from 'phaser';
-import { ROOM_CODE_LENGTH, weaponDef, type ServerMessage } from '@sciboom/shared';
+import { ROOM_CODE_LENGTH, nicknameProblem, weaponDef, type ServerMessage } from '@sciboom/shared';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
 import { Net } from '../net/Net';
 import { equippedWeapon, loadSave, updateSave } from '../save';
-import { session } from '../net/session';
+import { setNickname } from '../net/account';
+import { isStudent, session } from '../net/session';
 import { addTextButton } from '../ui/TextButton';
 import { addTextInput } from '../ui/TextInput';
 
@@ -54,16 +55,7 @@ export class LobbyScene extends Phaser.Scene {
       addTextButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 180, 'ลองใหม่', () => this.scene.restart(), { width: 220, height: 58, fontSize: 24 });
       return;
     }
-    const save = loadSave();
-    this.net.send({
-      t: 'hello',
-      name: save.nickname || session.nickname || 'ผู้เล่น',
-      character: save.character,
-      outfit: save.outfit,
-      level: save.level,
-      weaponId: weaponDef(equippedWeapon(save).id).id,
-      token: session.token ?? undefined,
-    });
+    this.hello();
     this.net.onClose = () => this.status.setText('การเชื่อมต่อหลุด กด "กลับ" แล้วเข้าใหม่').setColor('#ff9a9a');
     this.status.setText('');
     this.showChoices();
@@ -84,7 +76,7 @@ export class LobbyScene extends Phaser.Scene {
     // Left: name + create
     card(340, 'สร้างห้องใหม่');
     this.panel.push(this.add.text(340, 220, 'ชื่อที่เพื่อนจะเห็น', text(20)).setOrigin(0.5));
-    const name = addTextInput(this, 340, 270, { width: 360, maxLength: 16, value: save.nickname || session.nickname || '', placeholder: 'ชื่อเล่น' });
+    const name = addTextInput(this, 340, 270, { width: 360, maxLength: 16, value: this.currentName(save.nickname), placeholder: 'ชื่อเล่น' });
     const toggle = this.add.text(340, 350, '', text(22)).setOrigin(0.5).setInteractive({ useHandCursor: true });
     const drawToggle = () => toggle.setText(`${this.quizDuel ? '[x]' : '[ ]'} Quiz Duel: ตอบคำถามก่อนยิงทุกตา`);
     drawToggle();
@@ -94,9 +86,8 @@ export class LobbyScene extends Phaser.Scene {
     });
     this.panel.push(toggle, this.add.text(340, 385, 'ตอบถูก ยิงแรงขึ้น 15% และเติมเกจไม้ตาย', text(16, '#bfe8ff')).setOrigin(0.5));
     this.panel.push(
-      addTextButton(this, 340, 470, 'สร้างห้อง', () => {
-        this.saveName(name.value);
-        this.net?.send({ t: 'create', quizDuel: this.quizDuel });
+      addTextButton(this, 340, 470, 'สร้างห้อง', async () => {
+        if (await this.saveName(name.value)) this.net?.send({ t: 'create', quizDuel: this.quizDuel });
       }, { width: 300, color: 0x2fbf5b }),
     );
 
@@ -104,33 +95,50 @@ export class LobbyScene extends Phaser.Scene {
     card(940, 'เข้าห้องของเพื่อน');
     this.panel.push(this.add.text(940, 220, `ใส่รหัสห้อง ${ROOM_CODE_LENGTH} ตัว`, text(20)).setOrigin(0.5));
     const code = addTextInput(this, 940, 290, { width: 300, fontSize: 44, maxLength: ROOM_CODE_LENGTH, uppercase: true, placeholder: 'ABCDE' });
-    const join = () => {
+    const join = async () => {
       if (code.value.trim().length !== ROOM_CODE_LENGTH) {
         this.status.setText(`รหัสห้องต้องมี ${ROOM_CODE_LENGTH} ตัว`).setColor('#ff9a9a');
         return;
       }
-      this.saveName(name.value);
+      if (!(await this.saveName(name.value))) return;
       this.net?.send({ t: 'join', code: code.value.trim() });
       this.status.setText('กำลังเข้าห้อง...').setColor('#bfe8ff');
     };
-    code.addEventListener('keydown', (e) => e.key === 'Enter' && join());
+    code.addEventListener('keydown', (e) => e.key === 'Enter' && void join());
     this.panel.push(addTextButton(this, 940, 470, 'เข้าห้อง', join, { width: 300, color: 0x8a5cf6 }));
   }
 
-  private saveName(value: string) {
-    const nickname = value.trim().slice(0, 16);
-    updateSave((d) => (d.nickname = nickname));
-    // The server reads the name from "hello": send it again with the new name
+  /** Students go by their account nickname; guests by the one saved on this device */
+  private currentName(saved: string): string {
+    return isStudent() ? session.nickname : saved;
+  }
+
+  /** Tell the server who we are (it reads the name, look and weapon from this) */
+  private hello() {
     const save = loadSave();
     this.net?.send({
       t: 'hello',
-      name: nickname || session.nickname || 'ผู้เล่น',
+      name: this.currentName(save.nickname) || 'ผู้เล่น',
       character: save.character,
       outfit: save.outfit,
       level: save.level,
       weaponId: weaponDef(equippedWeapon(save).id).id,
       token: session.token ?? undefined,
     });
+  }
+
+  /** Check and keep the typed name; false (with a message) if it isn't allowed */
+  private async saveName(value: string): Promise<boolean> {
+    const nickname = value.trim();
+    if (nickname === this.currentName(loadSave().nickname)) return true;
+    const problem = isStudent() ? await setNickname(nickname) : nicknameProblem(nickname);
+    if (problem) {
+      this.status.setText(problem).setColor('#ff9a9a');
+      return false;
+    }
+    if (!isStudent()) updateSave((d) => (d.nickname = nickname));
+    this.hello();
+    return true;
   }
 
   /** Waiting for a friend: show the code big */
