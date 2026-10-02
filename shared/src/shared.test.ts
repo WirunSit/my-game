@@ -361,3 +361,16 @@ test('terrain encodes and decodes exactly', () => {
   const back = Terrain.decode(t.encode());
   assert.deepEqual(back.mask, t.mask);
 });
+
+// ---- Accounts ---------------------------------------------------------------------------
+import { nicknameProblem, parseCsv, toCsv } from './index';
+
+test('nicknames: polite Thai/English names pass, rude ones and odd symbols do not', () => {
+  for (const ok of ['ต้นกล้า', 'Mint', 'บอส_2', 'น้ำ ใส']) assert.equal(nicknameProblem(ok), null, ok);
+  for (const bad of ['ค ว ย', 'fuuuck', 'อีดอก123', '', 'a'.repeat(17), '<script>']) assert.notEqual(nicknameProblem(bad), null, bad);
+});
+
+test('CSV round-trips quotes, commas and new lines', () => {
+  const rows = [['id', 'question'], ['u1-001', 'ข้อใด "ถูก", ไม่ใช่\nบรรทัดใหม่']];
+  assert.deepEqual(parseCsv(toCsv(rows)), rows);
+});

@@ -26,3 +26,6 @@ Thumbs.db
 
 # Sprite slicer debug previews (regenerate with npm run art:debug)
 art/debug/
+
+# Local database (npm run dev)
+server/data/

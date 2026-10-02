@@ -20,9 +20,13 @@ interface Client {
 }
 
 export interface LobbyOptions {
-  questions: () => Question[];
-  /** Check a login token: returns the player's classroom id, or undefined if the token is bad */
-  identify?: (token: string | undefined) => Promise<{ group: string | null } | undefined>;
+  questions: () => Question[] | Promise<Question[]>;
+  /**
+   * Check a login token: returns who may play together (`group`, e.g. the
+   * classroom) and the name to show (students can't pick a rude one this way),
+   * or undefined if the token is bad.
+   */
+  identify?: (token: string | undefined) => Promise<{ group: string | null; name?: string } | undefined>;
   room?: Partial<Omit<RoomOptions, 'send' | 'questions'>>;
 }
 
@@ -58,7 +62,7 @@ export class Lobby {
       case 'hello': {
         const who = this.opts.identify ? await this.opts.identify(msg.token) : { group: null };
         if (!who) return this.error(id, 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
-        client.hello = msg;
+        client.hello = who.name ? { ...msg, name: who.name } : msg;
         client.group = who.group;
         return;
       }
@@ -68,7 +72,7 @@ export class Lobby {
         const code = this.newCode();
         const room = new PvpRoom(code, !!msg.quizDuel, {
           ...this.opts.room,
-          questions: this.opts.questions(),
+          questions: await this.opts.questions(),
           send: (pid, m) => this.send(pid, m),
         });
         room.addPlayer(id, client.hello);
