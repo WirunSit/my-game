@@ -215,3 +215,54 @@ test('path prefix cuts a path to a length along the curve', () => {
   assert.deepEqual(pathPrefix(path, 15), [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }]);
   assert.deepEqual(pathPrefix(path, 100), path);
 });
+
+// ---- Skills -------------------------------------------------------------------------
+import { WEAPON_SPECIALS, flightOptions, planVolley, strikeBolt, type ShotInput } from './index';
+
+const testMap = () => Terrain.generate(5);
+const aim = (wind = 0): ShotInput => ({ x: 400, y: 200, angleDeg: 55, facing: 1, power: 70, wind });
+
+test('every catalogue weapon has a special', () => {
+  for (const w of WEAPON_CATALOG) assert.ok(WEAPON_SPECIALS[w.id], w.id);
+});
+
+test('triple shot fires three spread shells', () => {
+  const v = planVolley('triple', null, aim(), testMap(), [], 'me');
+  assert.equal(v.length, 3);
+  const xs = v.map((p) => p.result.impact!.x);
+  assert.ok(xs[0] !== xs[1] && xs[1] !== xs[2]);
+  assert.ok(v.every((p) => p.damageMul < 1 && p.explodes));
+});
+
+test('split special breaks into three at the top of the arc', () => {
+  const v = planVolley('special', 'split', aim(), testMap(), [], 'me');
+  assert.equal(v.length, 4);
+  assert.equal(v[0].explodes, false, 'the carrier does not explode');
+  assert.ok(v.slice(1).every((p) => p.delay > 0 && p.delay === v[1].delay));
+});
+
+test('no-wind special and the ultimate ignore wind; the paper plane feels more', () => {
+  const t = testMap();
+  const calm = planVolley('normal', null, aim(0), t, [], 'me')[0].result.impact!.x;
+  const windy = planVolley('normal', null, aim(10), t, [], 'me')[0].result.impact!.x;
+  assert.equal(planVolley('special', 'nowind', aim(10), t, [], 'me')[0].result.impact!.x, calm);
+  assert.equal(planVolley('ultimate', null, aim(10), t, [], 'me')[0].result.impact!.x, calm);
+  const plane = planVolley('plane', null, aim(10), t, [], 'me')[0];
+  assert.ok(plane.result.impact!.x > windy, 'paper drifts further downwind');
+  assert.equal(plane.explodes, false);
+  assert.equal(flightOptions('special', 'bounce', 0).bounces, 1);
+});
+
+test('bouncing shells travel further than plain ones', () => {
+  const t = testMap();
+  const plain = planVolley('normal', null, aim(), t, [], 'me')[0].result;
+  const bounce = planVolley('special', 'bounce', aim(), t, [], 'me')[0].result;
+  assert.ok(bounce.path.length > plain.path.length);
+});
+
+test('a lightning bolt falls straight onto the impact point', () => {
+  const t = testMap();
+  const bolt = strikeBolt({ x: 900, y: 0 }, t, [], 'me');
+  assert.ok(Math.abs(bolt.result.impact!.x - 900) < 1);
+  assert.ok(Math.abs(bolt.result.impact!.y - t.groundBelow(900, 0)!) < 3);
+});

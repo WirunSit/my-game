@@ -60,29 +60,66 @@ export interface ShotResult {
  * Deterministic: the same input always produces the same path.
  */
 export function simulateShot(input: ShotInput, terrain: Terrain, targets: ShotTarget[], shooterId: string): ShotResult {
+  return fly(launchState(input), { windAccel: input.wind * WIND_TO_ACCEL }, terrain, targets, shooterId);
+}
+
+/** Position and velocity (px/s) of a projectile */
+export interface FlightState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+
+/** How a projectile behaves in the air (special shots change these) */
+export interface FlightOptions {
+  /** Sideways acceleration, px/s² (wind × WIND_TO_ACCEL × how much this projectile feels wind) */
+  windAccel: number;
+  /** Downward acceleration, px/s² (default GRAVITY) */
+  gravity?: number;
+  /** Fly straight, ignoring gravity and wind, for this many steps first (rockets) */
+  straightSteps?: number;
+  /** Bounce off the ground this many times before exploding */
+  bounces?: number;
+  /** Steps during which the shooter can't be hit (so the shot can leave the barrel; default 12) */
+  ignoreShooterSteps?: number;
+}
+
+export function launchState(input: ShotInput): FlightState {
   const rad = (input.angleDeg * Math.PI) / 180;
   const speed = input.power * POWER_TO_SPEED;
-  let x = input.x;
-  let y = input.y;
-  let vx = Math.cos(rad) * speed * input.facing;
-  let vy = -Math.sin(rad) * speed;
-  const ax = input.wind * WIND_TO_ACCEL;
+  return { x: input.x, y: input.y, vx: Math.cos(rad) * speed * input.facing, vy: -Math.sin(rad) * speed };
+}
+
+/**
+ * Fly a projectile from any state until it hits ground, a player, or leaves the map.
+ * Deterministic: the same input always produces the same path.
+ */
+export function fly(start: FlightState, opts: FlightOptions, terrain: Terrain, targets: ShotTarget[], shooterId: string): ShotResult {
+  let { x, y, vx, vy } = start;
+  const gravity = opts.gravity ?? GRAVITY;
+  const straight = opts.straightSteps ?? 0;
+  const ignoreSteps = opts.ignoreShooterSteps ?? 12;
+  let bounces = opts.bounces ?? 0;
   const path: Vec[] = [{ x, y }];
   const maxSteps = MAX_FLIGHT_SECONDS / STEP;
 
   for (let i = 0; i < maxSteps; i++) {
     const nx = x + vx * STEP;
     const ny = y + vy * STEP;
-    vx += ax * STEP;
-    vy += GRAVITY * STEP;
+    if (i >= straight) {
+      vx += opts.windAccel * STEP;
+      vy += gravity * STEP;
+    }
 
     // Check the segment in ~2px slices so fast shots can't tunnel through thin ground
     const slices = Math.max(1, Math.ceil(Math.hypot(nx - x, ny - y) / 2));
+    let bounced = false;
     for (let s = 1; s <= slices; s++) {
       const px = x + ((nx - x) * s) / slices;
       const py = y + ((ny - y) * s) / slices;
       // Ignore the shooter for the first moments so the shot can leave the barrel
-      const ignoreShooter = i < 12;
+      const ignoreShooter = i < ignoreSteps;
       for (const t of targets) {
         if (ignoreShooter && t.id === shooterId) continue;
         const r = t.radius ?? BODY_RADIUS;
@@ -94,10 +131,22 @@ export function simulateShot(input: ShotInput, terrain: Terrain, targets: ShotTa
         }
       }
       if (terrain.isSolid(px, py)) {
+        if (bounces > 0) {
+          // Hop back up from the last free point, losing some speed
+          bounces--;
+          x = x + ((nx - x) * (s - 1)) / slices;
+          y = y + ((ny - y) * (s - 1)) / slices;
+          vy = -Math.abs(vy) * 0.55;
+          vx *= 0.75;
+          path.push({ x, y });
+          bounced = true;
+          break;
+        }
         path.push({ x: px, y: py });
         return { path, impact: { x: px, y: py }, directHitId: null };
       }
     }
+    if (bounced) continue;
 
     x = nx;
     y = ny;
