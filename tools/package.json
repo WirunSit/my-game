@@ -9,6 +9,7 @@
     "playtest:stage": "node playtest-stage.mjs",
     "playtest:inventory": "node playtest-inventory.mjs",
     "playtest:wardrobe": "node playtest-wardrobe.mjs",
+    "playtest:skills": "node playtest-skills.mjs",
     "costumes": "node costumes.mjs"
   },
   "devDependencies": {

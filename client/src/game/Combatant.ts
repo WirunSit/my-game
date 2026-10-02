@@ -11,6 +11,8 @@ export interface Combatant {
   readonly maxHp: number;
   hp: number;
   alive: boolean;
+  /** Camouflaged: hidden from the other side (and from the mini-map) */
+  hidden: boolean;
   /** Feet position */
   x: number;
   y: number;

@@ -37,8 +37,20 @@ export class PreloadScene extends Phaser.Scene {
       frameRate: 16,
       hideOnComplete: true,
     });
+    this.makePaperPlane();
     // ?costumes opens the developer page for checking where hats and glasses sit
     const sheet = import.meta.env.DEV && new URLSearchParams(location.search).has('costumes');
     this.scene.start(sheet ? 'CostumeSheet' : 'Menu');
+  }
+
+  /** Paper-plane projectile (no art sheet has one): folded white dart pointing right */
+  private makePaperPlane() {
+    const g = this.make.graphics({}, false);
+    g.lineStyle(4, 0x1b1d3a, 1);
+    g.fillStyle(0xffffff, 1).fillTriangle(4, 8, 92, 32, 30, 34).strokeTriangle(4, 8, 92, 32, 30, 34);
+    g.fillStyle(0xd6e4ff, 1).fillTriangle(4, 56, 92, 32, 30, 34).strokeTriangle(4, 56, 92, 32, 30, 34);
+    g.lineStyle(3, 0x8fa8d8, 1).lineBetween(30, 34, 92, 32);
+    g.generateTexture('fx/paper_plane', 96, 64);
+    g.destroy();
   }
 }

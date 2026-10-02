@@ -26,14 +26,15 @@ export class BattleScene extends ArenaScene {
       new Fighter(this, 'p2', 'ผู้เล่น 2', x2, spawn(x2), -1, plainLook(p2), baseWeaponStats('beaker_gun'), 0xff5e8a),
     ];
     this.setupHud();
+    // Same skills for both players; specials are open to everyone so it stays fair
+    for (const c of this.combatants) this.enableSkills(c as Fighter, true);
     this.runMatch();
   }
 
   protected async takeTurn(actor: Combatant) {
     const f = actor as Fighter;
     this.hud.banner(`ตาของ ${f.name}`);
-    const power = await this.humanTurn(f);
-    if (power !== null) await this.shoot(f, power);
+    await this.humanShot(f);
     await this.wait(900);
   }
 

@@ -36,6 +36,7 @@ export class Hud {
   private readonly minimapDots: Phaser.GameObjects.Graphics;
   private readonly mapScale: number;
   private statusItems: Phaser.GameObjects.GameObject[] = [];
+  private lastBanner?: Phaser.GameObjects.Text;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -206,6 +207,11 @@ export class Hud {
 
   /** Big centred message that fades away (e.g. "ตาของผู้เล่น 1") */
   banner(text: string, color = '#ffffff') {
+    // A new message replaces the old one instead of piling on top of it
+    if (this.lastBanner?.active) {
+      this.scene.tweens.killTweensOf(this.lastBanner);
+      this.lastBanner.destroy();
+    }
     const t = this.scene.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 80, text, textStyle(52, color))
       .setOrigin(0.5)
@@ -215,5 +221,6 @@ export class Hud {
       .setAlpha(0);
     this.scene.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 220, ease: 'Back.out' });
     this.scene.tweens.add({ targets: t, alpha: 0, y: t.y - 30, delay: 1000, duration: 400, onComplete: () => t.destroy() });
+    this.lastBanner = t;
   }
 }

@@ -28,6 +28,7 @@ export class Enemy implements Combatant {
   readonly maxHp: number;
   hp: number;
   alive = true;
+  hidden = false;
   angle = 50;
   facing: 1 | -1 = -1;
   lastPower: number | null = null;

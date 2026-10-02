@@ -34,6 +34,7 @@ export class Fighter implements Combatant {
   /** Power used for the previous shot (shown as a marker on the power bar) */
   lastPower: number | null = null;
   alive = true;
+  hidden = false;
   private vy = 0;
 
   private readonly root: Phaser.GameObjects.Container;
@@ -98,6 +99,35 @@ export class Fighter implements Combatant {
       this.root.add(this.shieldImg);
     }
     this.shieldImg?.setVisible(on);
+  }
+
+  /** Camouflage skill: nearly see-through until the start of our next turn */
+  setStealth(on: boolean) {
+    this.hidden = on;
+    this.scene.tweens.add({ targets: [this.root, this.nameTag], alpha: on ? 0.22 : 1, duration: 400 });
+  }
+
+  /** Paper-plane skill: vanish in a puff of dust and reappear at (x, y) */
+  teleportTo(x: number, y: number) {
+    this.puff();
+    this.x = Phaser.Math.Clamp(x, 0, WORLD_WIDTH - 1);
+    this.y = y;
+    this.vy = 0;
+    this.sync();
+    this.puff();
+  }
+
+  heal(amount: number) {
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    const fx = this.scene.add.image(this.x, this.y - BODY_HEIGHT / 2, 'fx/fx_heal').setDepth(DEPTH.fx);
+    fx.setScale((BODY_HEIGHT * 1.2) / fx.height).setAlpha(0.9);
+    this.scene.tweens.add({ targets: fx, y: fx.y - 50, alpha: 0, duration: 1100, onComplete: () => fx.destroy() });
+  }
+
+  private puff() {
+    const fx = this.scene.add.image(this.x, this.y - 30, 'fx/fx_dust').setDepth(DEPTH.fx);
+    fx.setScale(110 / fx.height);
+    this.scene.tweens.add({ targets: fx, scale: fx.scale * 1.5, alpha: 0, duration: 600, onComplete: () => fx.destroy() });
   }
 
   /** Where the shot leaves the barrel, in world coordinates */

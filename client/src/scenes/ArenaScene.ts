@@ -1,17 +1,38 @@
 import * as Phaser from 'phaser';
 import {
+  BODY_RADIUS,
+  BURN_DAMAGE,
+  BURN_TURNS,
+  DRAIN_SHARE,
+  GAUGE_HIT,
+  GAUGE_HURT,
+  GAUGE_MAX,
+  HEAL_AMOUNT,
+  ITEM_SKILLS,
   MAX_WIND,
+  PUSH_DISTANCE,
   Rng,
+  SPECIAL_COOLDOWN,
+  SPECIAL_KINDS,
   STEP,
   Terrain,
   WORLD_HEIGHT,
   WORLD_WIDTH,
   aimGuideLength,
   blastDamage,
+  flightOptions,
+  fly,
+  freshItemUses,
+  launchState,
   pathPrefix,
-  simulateShot,
+  planVolley,
+  strikeBolt,
+  weaponSpecial,
   windFactor,
-  type ShotResult,
+  type ItemSkill,
+  type Projectile,
+  type ShotMode,
+  type SpecialKind,
   type Vec,
   type WeaponStats,
 } from '@sciboom/shared';
@@ -22,6 +43,7 @@ import type { Fighter } from '../game/Fighter';
 import { TerrainView } from '../game/TerrainView';
 import { Controls } from '../ui/Controls';
 import { Hud } from '../ui/Hud';
+import { SKILL_SLOTS, SkillBar, type SkillSlot, type SlotState } from '../ui/SkillBar';
 import { addTextButton } from '../ui/TextButton';
 import { loadSave } from '../save';
 
@@ -41,6 +63,8 @@ export interface ShotOptions {
   angle?: number;
   /** Damage multiplier (quiz bonus) */
   damageMul?: number;
+  /** Skill shot (default: a normal shot) */
+  mode?: ShotMode;
 }
 
 export interface ShotOutcome {
@@ -49,13 +73,34 @@ export interface ShotOutcome {
 }
 
 interface Flight {
-  result: ShotResult;
+  proj: Projectile;
   sprite: Phaser.GameObjects.Image;
   elapsed: number;
+  done: boolean;
+}
+
+/** All projectiles of one shot (triple shot and split shells fly together) */
+interface Volley {
+  flights: Flight[];
   shooter: Combatant;
   weapon: WeaponStats;
   damageMul: number;
+  special: SpecialKind | null;
+  outcome: ShotOutcome;
   resolve: (o: ShotOutcome) => void;
+}
+
+/** A human fighter's skills for the current match */
+interface SkillState {
+  uses: Record<ItemSkill, number>;
+  /** Weapon special allowed (★3+ in stages, always in 2-player mode) */
+  specialUnlocked: boolean;
+  /** Own turns until the special can be used again */
+  specialCooldown: number;
+  /** Knowledge gauge 0–GAUGE_MAX */
+  gauge: number;
+  usedThisTurn: boolean;
+  armed: SkillSlot | null;
 }
 
 /**
@@ -80,7 +125,11 @@ export abstract class ArenaScene extends Phaser.Scene {
   private power = 0;
   private human: Fighter | null = null;
   private resolveHuman: ((power: number | null) => void) | null = null;
-  private flight: Flight | null = null;
+  private volley: Volley | null = null;
+  private skills = new Map<Combatant, SkillState>();
+  /** Turns of burning left (burn special) */
+  private burns = new Map<Combatant, number>();
+  private skillBar!: SkillBar;
   private skyMarker!: Phaser.GameObjects.Triangle;
   private guide!: Phaser.GameObjects.Graphics;
   private guideKey = '';
@@ -101,7 +150,9 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.combatants = [];
     this.phase = 'idle';
     this.turn = 0;
-    this.flight = null;
+    this.volley = null;
+    this.skills = new Map();
+    this.burns = new Map();
     this.human = null;
     this.resolveHuman = null;
     this.camTarget = null;
@@ -139,6 +190,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.controls.onFireUp = () => {
       if (this.phase === 'charging') this.finishHuman(this.power);
     };
+    this.skillBar = new SkillBar(this);
+    this.skillBar.onPick = (slot) => this.pickSkill(slot);
 
     const back = this.add
       .text(GAME_WIDTH / 2 + 150, 30, '☰ ออก', {
@@ -165,6 +218,10 @@ export abstract class ArenaScene extends Phaser.Scene {
       if (actor.alive) {
         this.newWind();
         this.hud.setActive(this.combatants.indexOf(actor));
+        await this.startOfTurn(actor);
+        if (token !== this.matchToken) return;
+      }
+      if (actor.alive) {
         await this.takeTurn(actor);
         if (token !== this.matchToken) return;
         await this.waitSettled();
@@ -185,9 +242,35 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected abstract takeTurn(actor: Combatant): Promise<void>;
   protected abstract onMatchEnd(winner: Combatant | null): void;
 
+  /** Things that happen before anyone acts: camouflage wears off, fire burns, cooldowns tick */
+  private async startOfTurn(actor: Combatant) {
+    if (actor.hidden) (actor as Fighter).setStealth(false);
+    const sk = this.skills.get(actor);
+    if (sk && sk.specialCooldown > 0) sk.specialCooldown--;
+    const burning = this.burns.get(actor) ?? 0;
+    if (burning > 0) {
+      this.burns.set(actor, burning - 1);
+      this.focusOn(actor);
+      this.hud.banner(`${actor.name} โดนไฟไหม้!`, '#ff8844');
+      await this.wait(500);
+      actor.takeDamage(BURN_DAMAGE);
+      this.floatText(actor.x, actor.y - actor.height - 30, `-${BURN_DAMAGE}`, '#ff8844');
+      this.hud.refreshHp();
+      await this.wait(700);
+    }
+  }
+
   /** Let a human walk, aim and charge. Resolves with the power, or null if the turn was lost. */
   protected humanTurn(f: Fighter): Promise<number | null> {
     this.human = f;
+    const sk = this.skills.get(f);
+    if (sk) {
+      sk.usedThisTurn = false;
+      sk.armed = null;
+      this.skillBar.setIcons(f.weapon.id, f.portraitKey);
+      this.skillBar.setVisible(true);
+      this.refreshSkills();
+    }
     this.phase = 'aiming';
     this.timeLeft = TURN_SECONDS;
     this.walkLeft = WALK_PER_TURN;
@@ -205,6 +288,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     const resolve = this.resolveHuman;
     this.resolveHuman = null;
     this.human?.setActive(false);
+    this.skillBar.setVisible(false);
     this.guide.clear();
     this.guideKey = '';
     if (power !== null && this.human) this.human.lastPower = power;
@@ -213,63 +297,239 @@ export abstract class ArenaScene extends Phaser.Scene {
     resolve?.(power);
   }
 
+  // ---- Skills ---------------------------------------------------------------
+
+  /** Give a human fighter item skills, a special and the knowledge gauge for this match */
+  protected enableSkills(f: Fighter, specialUnlocked: boolean) {
+    this.skills.set(f, { uses: freshItemUses(), specialUnlocked, specialCooldown: 0, gauge: 0, usedThisTurn: false, armed: null });
+  }
+
+  /** Fill the knowledge gauge: right answers, hits and getting hit all add to it */
+  protected addGauge(c: Combatant, amount: number) {
+    const sk = this.skills.get(c);
+    if (!sk) return;
+    const before = sk.gauge;
+    sk.gauge = Phaser.Math.Clamp(sk.gauge + amount, 0, GAUGE_MAX);
+    if (before < GAUGE_MAX && sk.gauge >= GAUGE_MAX) this.floatText(c.x, c.y - c.height - 90, 'ไม้ตายพร้อม!', '#ffcc33');
+    if (c === this.human) this.refreshSkills();
+  }
+
+  private slotState(sk: SkillState, slot: SkillSlot, f: Fighter): SlotState {
+    const armed = sk.armed === slot;
+    const free = !sk.usedThisTurn;
+    if (slot === 'special') {
+      if (!sk.specialUnlocked) return { enabled: false, armed, note: '★3' };
+      if (sk.specialCooldown > 0) return { enabled: false, armed, note: `อีก ${sk.specialCooldown}` };
+      return { enabled: free, armed };
+    }
+    if (slot === 'ultimate') return { enabled: free && sk.gauge >= GAUGE_MAX, armed, fill: sk.gauge / GAUGE_MAX };
+    const count = sk.uses[slot];
+    return { enabled: free && count > 0 && !(slot === 'heal' && f.hp >= f.maxHp), armed, count };
+  }
+
+  private skillHint(sk: SkillState, f: Fighter): string {
+    switch (sk.armed) {
+      case null:
+        return '';
+      case 'special': {
+        const sp = weaponSpecial(f.weapon.id);
+        return `ท่าพิเศษ "${sp.name}": ${SPECIAL_KINDS[sp.kind]}`;
+      }
+      case 'ultimate':
+        return 'ไม้ตาย: ลูกใหญ่ ดาเมจ x2 ไม่โดนลม และเห็นเส้นนำทางเต็มเส้น';
+      default:
+        return `${ITEM_SKILLS[sk.armed].name}: ${ITEM_SKILLS[sk.armed].desc}`;
+    }
+  }
+
+  private refreshSkills() {
+    const f = this.human;
+    const sk = f && this.skills.get(f);
+    if (!f || !sk) return;
+    const states = {} as Record<SkillSlot, SlotState>;
+    for (const slot of SKILL_SLOTS) states[slot] = this.slotState(sk, slot, f);
+    this.skillBar.update(states, this.skillHint(sk, f));
+    this.guideKey = '';
+  }
+
+  /** Tap on a skill: instant ones happen now; shot skills are armed (tap again to cancel) */
+  private pickSkill(slot: SkillSlot) {
+    const f = this.human;
+    const sk = f && this.skills.get(f);
+    if (!f || !sk || this.phase !== 'aiming') return;
+    if (sk.armed === slot) {
+      sk.armed = null;
+      this.refreshSkills();
+      return;
+    }
+    if (!this.slotState(sk, slot, f).enabled) {
+      if (sk.usedThisTurn) this.hud.banner('ใช้สกิลได้ตาละ 1 ครั้ง', '#cccccc');
+      return;
+    }
+    if (slot === 'heal') {
+      sk.uses.heal--;
+      sk.usedThisTurn = true;
+      f.heal(HEAL_AMOUNT);
+      this.floatText(f.x, f.y - f.height - 30, `+${HEAL_AMOUNT}`, '#7dff8a');
+      this.hud.refreshHp();
+    } else if (slot === 'stealth') {
+      sk.uses.stealth--;
+      sk.usedThisTurn = true;
+      f.setStealth(true);
+      this.hud.banner('พรางตัว!', '#bfe8ff');
+    } else {
+      sk.armed = slot;
+    }
+    this.refreshSkills();
+  }
+
+  /**
+   * A whole human turn with skills: walk/aim/charge, then fire using whatever
+   * skill was armed (uses are only spent if the shot is actually fired).
+   */
+  protected async humanShot(f: Fighter, opts: ShotOptions = {}): Promise<ShotOutcome[]> {
+    const power = await this.humanTurn(f);
+    if (power === null) return [];
+    const sk = this.skills.get(f);
+    const armed = sk?.armed ?? null;
+    if (sk && armed) {
+      sk.armed = null;
+      sk.usedThisTurn = true;
+      if (armed === 'special') sk.specialCooldown = SPECIAL_COOLDOWN;
+      else if (armed === 'ultimate') sk.gauge = 0;
+      else sk.uses[armed as ItemSkill]--;
+    }
+    if (armed === 'double') {
+      const first = await this.shoot(f, power, opts);
+      if (!this.combatants.some((c) => c !== f && c.alive)) return [first];
+      this.hud.banner('นัดที่สอง!', '#ffdd33');
+      await this.wait(500);
+      return [first, await this.shoot(f, power, { ...opts, damageMul: 1 })];
+    }
+    const mode: ShotMode = armed === 'triple' || armed === 'plane' || armed === 'special' || armed === 'ultimate' ? armed : 'normal';
+    if (mode === 'ultimate') {
+      this.hud.banner('ไม้ตาย!', '#ffcc33');
+      await this.wait(400);
+    }
+    return [await this.shoot(f, power, { ...opts, mode })];
+  }
+
   // ---- Shooting -------------------------------------------------------------
 
-  /** Fire a projectile from `shooter`; resolves after it lands and explodes */
+  /** Fire a shot (one or more projectiles) from `shooter`; resolves after everything has landed */
   protected shoot(shooter: Combatant, power: number, opts: ShotOptions = {}): Promise<ShotOutcome> {
     const weapon = opts.weapon ?? shooter.weapon;
     if (opts.angle !== undefined) {
       shooter.angle = opts.angle;
       shooter.sync();
     }
+    const mode = opts.mode ?? 'normal';
+    const special = mode === 'special' ? weaponSpecial(weapon.id).kind : null;
     const m = shooter.muzzle();
-    const targets = this.combatants.filter((c) => c.alive).map((c) => c.toTarget());
-    const result = simulateShot(
-      { x: m.x, y: m.y, angleDeg: shooter.angle, facing: shooter.facing, power, wind: this.wind },
-      this.terrain,
-      targets,
-      shooter.id,
-    );
+    const input = { x: m.x, y: m.y, angleDeg: shooter.angle, facing: shooter.facing, power, wind: this.wind };
+    const projectiles = planVolley(mode, special, input, this.terrain, this.targets(), shooter.id);
 
-    const sprite = this.add.image(m.x, m.y, `fx/${weapon.projectile}`).setOrigin(0.7, 0.5).setDepth(DEPTH.projectile);
-    sprite.setScale(40 / sprite.height);
     this.phase = 'flying';
     this.camTarget = null;
-    this.cameras.main.startFollow(sprite, true, 0.15, 0.15);
+    this.cameras.main.stopFollow();
     return new Promise((resolve) => {
-      this.flight = { result, sprite, elapsed: 0, shooter, weapon, damageMul: opts.damageMul ?? 1, resolve };
+      this.volley = { flights: [], shooter, weapon, damageMul: opts.damageMul ?? 1, special, outcome: { impact: null, hits: [] }, resolve };
+      for (const p of projectiles) this.launch(p);
     });
   }
 
-  private updateFlight(dt: number) {
-    const fl = this.flight!;
-    fl.elapsed += dt;
-    const path = fl.result.path;
-    const i = Math.min(path.length - 1, Math.floor(fl.elapsed / STEP));
-    const p = path[i];
-    const prev = path[Math.max(0, i - 1)];
-    fl.sprite.setPosition(p.x, p.y);
-    if (p.x !== prev.x || p.y !== prev.y) fl.sprite.rotation = Math.atan2(p.y - prev.y, p.x - prev.x);
-    this.skyMarker.setVisible(p.y < 0);
-    if (p.y < 0) this.skyMarker.x = p.x;
-    if (i === path.length - 1) this.endFlight();
+  private targets() {
+    return this.combatants.filter((c) => c.alive).map((c) => c.toTarget());
   }
 
-  private endFlight() {
-    const fl = this.flight!;
-    this.flight = null;
+  private launch(proj: Projectile) {
+    const v = this.volley!;
+    const key = proj.look === 'plane' ? 'fx/paper_plane' : proj.look === 'bolt' ? 'fx/proj_lightning' : `fx/${v.weapon.projectile}`;
+    const start = proj.result.path[0];
+    const sprite = this.add.image(start.x, start.y, key).setOrigin(0.7, 0.5).setDepth(DEPTH.projectile);
+    sprite.setScale((40 * proj.size) / sprite.height).setVisible(false);
+    v.flights.push({ proj, sprite, elapsed: 0, done: false });
+  }
+
+  private updateVolley(dt: number) {
+    const v = this.volley!;
+    for (const fl of v.flights) {
+      if (fl.done) continue;
+      fl.elapsed += dt;
+      const path = fl.proj.result.path;
+      const step = Math.floor(fl.elapsed / STEP) - fl.proj.delay;
+      if (step < 0) continue;
+      const i = Math.min(path.length - 1, step);
+      const p = path[i];
+      const prev = path[Math.max(0, i - 1)];
+      fl.sprite.setVisible(true).setPosition(p.x, p.y);
+      if (p.x !== prev.x || p.y !== prev.y) fl.sprite.rotation = Math.atan2(p.y - prev.y, p.x - prev.x);
+      if (i === path.length - 1) this.land(fl);
+    }
+    if (!this.volley) return;
+    // Camera and sky marker follow the first projectile still in the air
+    const live = v.flights.find((fl) => !fl.done && fl.sprite.visible);
+    if (live) {
+      const cam = this.cameras.main;
+      cam.scrollX += (live.sprite.x - GAME_WIDTH / 2 - cam.scrollX) * 0.15;
+      cam.scrollY += (live.sprite.y - GAME_HEIGHT / 2 - cam.scrollY) * 0.15;
+      this.skyMarker.setVisible(live.sprite.y < 0);
+      if (live.sprite.y < 0) this.skyMarker.x = live.sprite.x;
+    }
+    if (v.flights.every((fl) => fl.done)) this.endVolley();
+  }
+
+  /** One projectile has finished flying */
+  private land(fl: Flight) {
+    const v = this.volley!;
+    fl.done = true;
     fl.sprite.destroy();
-    this.skyMarker.setVisible(false);
-    this.cameras.main.stopFollow();
-    this.phase = 'idle';
-    const impact = fl.result.impact;
-    let outcome: ShotOutcome = { impact: null, hits: [] };
-    if (impact) outcome = this.explode(impact, fl.result.directHitId, fl.weapon, fl.damageMul, fl.shooter);
-    else this.hud.banner('พลาด!', '#cccccc');
-    fl.resolve(outcome);
+    const { impact, directHitId } = fl.proj.result;
+    if (fl.proj.look === 'plane') {
+      if (impact) {
+        (v.shooter as Fighter).teleportTo(impact.x, impact.y - 2);
+        this.hud.banner('บินไปแล้ว!', '#bfe8ff');
+      } else {
+        this.hud.banner('จรวดกระดาษหลุดไป!', '#cccccc');
+      }
+      return;
+    }
+    if (!fl.proj.explodes) return;
+    if (!impact) {
+      if (v.flights.length === 1) this.hud.banner('พลาด!', '#cccccc');
+      return;
+    }
+    v.outcome.impact ??= impact;
+    const weapon = {
+      ...v.weapon,
+      damage: v.weapon.damage * fl.proj.damageMul * v.damageMul,
+      radius: Math.round(v.weapon.radius * fl.proj.radiusMul),
+    };
+    const isBolt = fl.proj.look === 'bolt';
+    v.outcome.hits.push(...this.explode(impact, directHitId, weapon, v.shooter, isBolt ? null : v.special));
+    // Lightning special: a bolt follows onto the same spot
+    if (v.special === 'strike' && !isBolt) this.launch({ ...strikeBolt(impact, this.terrain, this.targets(), v.shooter.id), delay: 25 });
   }
 
-  private explode(at: Vec, directHitId: string | null, weapon: WeaponStats, damageMul: number, shooter: Combatant): ShotOutcome {
+  private endVolley() {
+    const v = this.volley!;
+    this.volley = null;
+    this.skyMarker.setVisible(false);
+    this.phase = 'idle';
+    // Chlorophyll / osmosis: give back part of the damage dealt
+    if (v.special === 'drain' && this.skills.has(v.shooter)) {
+      const dealt = v.outcome.hits.filter((h) => h.target !== v.shooter).reduce((a, h) => a + h.damage, 0);
+      const back = Math.round(dealt * DRAIN_SHARE);
+      if (back > 0 && v.shooter.alive) {
+        (v.shooter as Fighter).heal(back);
+        this.floatText(v.shooter.x, v.shooter.y - v.shooter.height - 30, `+${back}`, '#7dff8a');
+        this.hud.refreshHp();
+      }
+    }
+    v.resolve(v.outcome);
+  }
+
+  private explode(at: Vec, directHitId: string | null, weapon: WeaponStats, shooter: Combatant, special: SpecialKind | null): ShotOutcome['hits'] {
     const boom = this.add.sprite(at.x, at.y, 'fx/explosion_0').setDepth(DEPTH.fx);
     boom.setScale((weapon.radius * 2.8) / 256);
     boom.play('explosion');
@@ -282,17 +542,38 @@ export abstract class ArenaScene extends Phaser.Scene {
     for (const c of this.combatants) {
       if (!c.alive) continue;
       const direct = c.id === directHitId;
-      let dmg = Math.round(blastDamage(at, c.toTarget(), weapon.radius, weapon.damage, direct) * damageMul);
+      let dmg = Math.round(blastDamage(at, c.toTarget(), weapon.radius, weapon.damage, direct));
       if (dmg <= 0) continue;
       dmg = this.modifyDamage(c, dmg);
       c.takeDamage(dmg);
       hits.push({ target: c, damage: dmg });
       this.floatText(c.x, c.y - c.height - 30, `-${dmg}`, direct ? '#ffdd33' : '#ff5544');
+      if (c === shooter) continue;
+      this.addGauge(shooter, GAUGE_HIT);
+      this.addGauge(c, GAUGE_HURT);
+      if (special === 'burn' && c.alive) {
+        this.burns.set(c, BURN_TURNS);
+        this.floatText(c.x, c.y - c.height - 80, 'ติดไฟ!', '#ff8844');
+      }
+      if (special === 'push' && c.alive) this.push(c, at, weapon.radius);
     }
     if (directHitId) this.hud.banner('โดนเต็ม ๆ!', '#ffdd33');
     this.hud.refreshHp();
     this.onExplosion(at, weapon.radius, shooter);
-    return { impact: at, hits };
+    return hits;
+  }
+
+  /** Tornado special: blow the target away from the blast (big bosses move less) */
+  private push(c: Combatant, from: Vec, radius: number) {
+    const hitR = c.toTarget().radius ?? BODY_RADIUS;
+    const dir = Math.sign(c.x - from.x) || 1;
+    const near = Math.max(0.3, 1 - Math.abs(c.x - from.x) / (radius + hitR));
+    const dist = PUSH_DISTANCE * near * Math.min(1, BODY_RADIUS / hitR);
+    const goal = Phaser.Math.Clamp(c.x + dir * dist, 0, WORLD_WIDTH - 1);
+    // Slide sideways, stopping at a hill in the way
+    let x = c.x;
+    while (Math.abs(goal - x) >= 4 && !this.terrain.isSolid(x + dir * 4, c.y - 24)) x += dir * 4;
+    this.tweens.add({ targets: c, x, duration: 350, ease: 'Cubic.out', onUpdate: () => c.sync() });
   }
 
   /** Hook: change damage before it's applied (e.g. shields) */
@@ -412,15 +693,20 @@ export abstract class ArenaScene extends Phaser.Scene {
     }
 
     if (this.phase === 'aiming' || this.phase === 'charging') this.updateHumanInput(dt);
-    if ((this.phase === 'aiming' || this.phase === 'charging') && this.human) this.drawGuide(this.human);
-    if (this.phase === 'flying' && this.flight) this.updateFlight(dt);
+    if ((this.phase === 'aiming' || this.phase === 'charging') && this.human) {
+      const f = this.human;
+      this.drawGuide(f);
+      this.skillBar.fadeIfCovering(f.x - this.cameras.main.scrollX, f.y - f.height, f.y);
+    }
+    if (this.phase === 'flying' && this.volley) this.updateVolley(dt);
 
     const cam = this.cameras.main;
     if (this.camTarget) {
       const goal = this.camTarget.x - GAME_WIDTH / 2;
       cam.scrollX += (goal - cam.scrollX) * Math.min(1, dt * 5);
     }
-    this.hud.updateMinimap(this.terrain.height, cam.scrollX, GAME_WIDTH, this.flight ? this.flight.sprite : null);
+    const flying = this.volley?.flights.find((fl) => !fl.done && fl.sprite.visible)?.sprite ?? null;
+    this.hud.updateMinimap(this.terrain.height, cam.scrollX, GAME_WIDTH, flying);
   }
 
   private updateHumanInput(dt: number) {
@@ -475,8 +761,13 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (key === this.guideKey) return;
     this.guideKey = key;
 
-    const shot = simulateShot({ x: m.x, y: m.y, angleDeg: f.angle, facing: f.facing, power, wind: this.wind }, this.terrain, [], f.id);
-    const length = aimGuideLength(this.assistLevel);
+    // Armed skills change the flight (no wind, rocket, paper plane...); the Ultimate shows the whole path
+    const armed = this.skills.get(f)?.armed ?? null;
+    const mode: ShotMode = armed === 'plane' || armed === 'special' || armed === 'ultimate' ? armed : 'normal';
+    const special = mode === 'special' ? weaponSpecial(f.weapon.id).kind : null;
+    const input = { x: m.x, y: m.y, angleDeg: f.angle, facing: f.facing, power, wind: this.wind };
+    const shot = fly(launchState(input), flightOptions(mode, special, this.wind), this.terrain, [], f.id);
+    const length = mode === 'ultimate' ? 4000 : aimGuideLength(this.assistLevel);
     const path = pathPrefix(shot.path, length);
     const g = this.guide;
     g.clear();

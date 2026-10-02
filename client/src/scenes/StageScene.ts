@@ -1,5 +1,20 @@
 import * as Phaser from 'phaser';
-import { QuizDeck, RARITY_NAMES, WORLD_HEIGHT, WORLD_WIDTH, addExp, newlyUnlocked, planShot, rollDrop, stageRewards, weaponDef, weaponStats, type Vec } from '@sciboom/shared';
+import {
+  GAUGE_CORRECT_ANSWER,
+  QuizDeck,
+  RARITY_NAMES,
+  SPECIAL_MIN_RARITY,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  addExp,
+  newlyUnlocked,
+  planShot,
+  rollDrop,
+  stageRewards,
+  weaponDef,
+  weaponStats,
+  type Vec,
+} from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
 import { Crate } from '../game/Crate';
@@ -64,6 +79,7 @@ export class StageScene extends ArenaScene {
     this.enemySkill = this.stage.enemy.skill;
     this.combatants = [this.player, this.enemy];
     this.setupHud('WorldMap');
+    this.enableSkills(this.player, equippedWeapon(save).rarity >= SPECIAL_MIN_RARITY);
 
     this.deck = new QuizDeck(UNITS[this.stage.unit].questions, this.rng, this.stage.maxDifficulty);
     for (let i = 0; i < this.stage.crates; i++) this.spawnCrate();
@@ -93,16 +109,15 @@ export class StageScene extends ArenaScene {
       await this.wait(900);
     }
     this.hud.banner('ตาของคุณ!');
-    const power = await this.humanTurn(this.player);
-    if (power !== null) {
-      const mul = this.damageMul;
+    const shots = await this.humanShot(this.player, { damageMul: this.damageMul });
+    if (shots.length > 0) {
       this.damageMul = 1;
-      await this.shoot(this.player, power, { damageMul: mul });
-      if (this.doubleShot && this.enemy.alive) {
+      // Double-shot item from a question crate: one more normal shot
+      if (this.doubleShot && this.enemy.alive && this.player.lastPower !== null) {
         this.doubleShot = false;
-        this.hud.banner('นัดที่สอง!', '#ffdd33');
+        this.hud.banner('นัดเพิ่มจากกล่อง!', '#ffdd33');
         await this.wait(500);
-        await this.shoot(this.player, power);
+        await this.shoot(this.player, this.player.lastPower);
       }
       this.updateStatus();
     }
@@ -163,7 +178,13 @@ export class StageScene extends ArenaScene {
 
   private plan(skill: number) {
     const targets = this.combatants.filter((c) => c.alive).map((c) => c.toTarget());
-    return planShot(this.enemy.muzzle(), this.enemy.facing, this.player.toTarget(), this.wind, this.terrain, targets, this.enemy.id, skill, this.rng);
+    let target = this.player.toTarget();
+    // Camouflaged player: the enemy can only guess roughly where they are
+    if (this.player.hidden) {
+      target = { ...target, x: target.x + (this.rng.next() < 0.5 ? -1 : 1) * this.rng.range(180, 320) };
+      skill = 0;
+    }
+    return planShot(this.enemy.muzzle(), this.enemy.facing, target, this.wind, this.terrain, targets, this.enemy.id, skill, this.rng);
   }
 
   // ---- Questions & items ----------------------------------------------------
@@ -178,6 +199,7 @@ export class StageScene extends ArenaScene {
     if (res.correct) {
       this.stats.crystals++;
       this.stats.correct++;
+      this.addGauge(this.player, GAUGE_CORRECT_ANSWER);
     }
     updateSave((d) => {
       d.answers.push({ id: item.question.id, ok: res.correct, ms: Math.round(res.timeMs), at: Date.now() });
