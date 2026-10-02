@@ -166,3 +166,33 @@ test('every catalogue weapon has art', () => {
   const manifest = JSON.parse(readFileSync(new URL('../../client/public/assets/manifest.json', import.meta.url), 'utf8')) as { key: string }[];
   for (const w of WEAPON_CATALOG) assert.ok(manifest.some((m) => m.key === `weapons/${w.id}`), w.id);
 });
+
+// ---- Cosmetics -----------------------------------------------------------------
+import { COSMETIC_CATALOG, COSMETIC_SLOTS, SLOT_UNLOCK_LEVEL, cosmeticArt, newlyUnlocked, sanitizeOutfit } from './index';
+
+test('every cosmetic has art for both characters', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../client/public/assets/manifest.json', import.meta.url), 'utf8')) as { key: string }[];
+  for (const c of COSMETIC_CATALOG) {
+    for (const ch of ['boy', 'girl'] as const) assert.ok(manifest.some((m) => m.key === cosmeticArt(c, ch)), `${c.id} (${ch})`);
+  }
+});
+
+test('each slot opens at its design level and nothing unlocks earlier', () => {
+  for (const slot of COSMETIC_SLOTS) {
+    const levels = COSMETIC_CATALOG.filter((c) => c.slot === slot).map((c) => c.level);
+    assert.equal(Math.min(...levels), SLOT_UNLOCK_LEVEL[slot], slot);
+  }
+  assert.equal(new Set(COSMETIC_CATALOG.map((c) => c.id)).size, COSMETIC_CATALOG.length, 'ids are unique');
+});
+
+test('outfits drop locked, unknown and wrong-slot items', () => {
+  const o = sanitizeOutfit({ hat: 'wizard_hat', face: 'glasses_round', suit: 'grad_cap', back: 'nope' }, 5);
+  assert.deepEqual(o, { hat: null, face: 'glasses_round', suit: null, back: null });
+  assert.deepEqual(sanitizeOutfit(undefined, 30), { hat: null, face: null, suit: null, back: null });
+});
+
+test('level-ups report the items they unlock', () => {
+  assert.deepEqual(newlyUnlocked(2, 3).map((c) => c.id), ['grad_cap']);
+  assert.equal(newlyUnlocked(1, 2).length, 0);
+  assert.equal(newlyUnlocked(0, 30).length, COSMETIC_CATALOG.length);
+});
