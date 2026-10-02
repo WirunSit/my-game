@@ -483,7 +483,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (timeline.flights[0]?.look === 'plane') sfx.skill();
     else sfx.fire();
     const sprites = timeline.flights.map((fl) => {
-      const key = fl.look === 'plane' ? 'fx/paper_plane' : fl.look === 'bolt' ? 'fx/proj_lightning' : `fx/${projectile}`;
+      const plane = this.textures.exists('fx/proj_paper_plane') ? 'fx/proj_paper_plane' : 'fx/paper_plane';
+      const key = fl.look === 'plane' ? plane : fl.look === 'bolt' ? 'fx/proj_lightning' : `fx/${projectile}`;
       const img = this.add.image(fl.path[0].x, fl.path[0].y, key).setOrigin(0.7, 0.5).setDepth(DEPTH.projectile).setVisible(false);
       return img.setScale((40 * fl.size) / img.height);
     });

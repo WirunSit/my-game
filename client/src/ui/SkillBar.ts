@@ -87,15 +87,22 @@ export class SkillBar {
       im.setScale(Math.min(h / im.height, (SIZE - 12) / im.width));
       return im;
     };
-    const icons: Record<SkillSlot, Phaser.GameObjects.Image[]> = {
-      double: [img('fx/proj_cannonball', 24, -8, 4), img('fx/proj_cannonball', 24, 8, -4)],
-      triple: [img('fx/proj_cannonball', 20, -12, 6), img('fx/proj_cannonball', 20, 0, -8), img('fx/proj_cannonball', 20, 12, 6)],
-      heal: [img('ui/heart', 38)],
-      plane: [img('fx/paper_plane', 30)],
-      stealth: [img(portraitKey, 46, 0, 0, 0.35)],
-      special: [img(`weapons/${weaponId}`, 34)],
-      ultimate: [img('ui/crystal', 38)],
+    // Made-from-existing-art icons; real icon art (art/raw/14.png -> ui/skill_*) replaces them when added
+    const fallback: Record<SkillSlot, () => Phaser.GameObjects.Image[]> = {
+      double: () => [img('fx/proj_cannonball', 24, -8, 4), img('fx/proj_cannonball', 24, 8, -4)],
+      triple: () => [img('fx/proj_cannonball', 20, -12, 6), img('fx/proj_cannonball', 20, 0, -8), img('fx/proj_cannonball', 20, 12, 6)],
+      heal: () => [img('ui/heart', 38)],
+      plane: () => [img(this.scene.textures.exists('fx/proj_paper_plane') ? 'fx/proj_paper_plane' : 'fx/paper_plane', 30)],
+      stealth: () => [img(portraitKey, 46, 0, 0, 0.35)],
+      special: () => [img(`weapons/${weaponId}`, 34)],
+      ultimate: () => [img('ui/crystal', 38)],
     };
+    const icons = {} as Record<SkillSlot, Phaser.GameObjects.Image[]>;
+    for (const slot of SKILL_SLOTS) {
+      const art = `ui/skill_${slot}`;
+      // The special keeps showing the player's own weapon
+      icons[slot] = slot !== 'special' && this.scene.textures.exists(art) ? [img(art, 44)] : fallback[slot]();
+    }
     for (const slot of SKILL_SLOTS) {
       const v = this.views.get(slot)!;
       v.icon.removeAll(true);

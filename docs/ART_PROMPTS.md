@@ -23,6 +23,7 @@
 | 🔴 ทำก่อน | 01, 06, 07, 08, 11g (ฉาก PvP), 12 | ขั้น 1 ระบบยิง |
 | 🟠 ถัดไป | 09a (บอสโลก 1), 10, 11a, 13 | ขั้น 2 ด่านบอส |
 | 🟢 ทีหลัง | 02, 03, 03c, 03d, 04, 05, 09b–e, 11b–f | ขั้น 3–7 |
+| 🔵 เสริมความสวย (ไม่บังคับ) | 14 (ไอคอนสกิล), 15 (เอฟเฟกต์จรวดกระดาษ ราก ลาวา) | ถ้ายังไม่มี เกมใช้ภาพที่วาดด้วยโค้ดแทน |
 
 ---
 
@@ -334,3 +335,30 @@ STYLE: cute 2D cartoon game texture, bright saturated colors, bold simple shapes
 A game title logo that reads exactly "SciBoom!" in big chunky bubbly 3D cartoon letters, orange-to-yellow gradient with a thick dark-blue outline, with a small cartoon bomb with a lit fuse replacing the dot of the "i", little science icons (atom, flask, leaf) around the letters. On a transparent background, centered. Only the text "SciBoom!" — no other words.
 ```
 > ส่วนคำว่า "บูมวิทย์" ที่เป็นภาษาไทย AI จะใส่เองในเกม เพราะ GPT ยังเขียนตัวอักษรไทยได้ไม่ดี
+
+## 14 — ไอคอนสกิล 🔵 (ไม่บังคับ)
+**ไฟล์:** `14.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 01 และ 07
+```
+A sprite sheet of 8 round game skill icons in 2 rows of 4, large empty space between them, on a transparent background. Each icon is a circular badge with a thick dark-blue outline and one simple, bold symbol in the middle, readable even when shown very small (60 pixels). No text, no numbers, no letters. Left to right, top to bottom:
+1. Two cannonballs flying side by side (double shot).
+2. Three cannonballs spreading out in a fan (triple shot).
+3. A glowing green heart with a small plus sign (heal).
+4. A white folded paper airplane with a curved motion trail (teleport by paper plane).
+5. A cute ghost-like faded silhouette of a kid with sparkles (camouflage / invisibility).
+6. A cannon with a golden star burst behind it (weapon special move).
+7. A glowing blue crystal with lightning sparks around it (ultimate power from knowledge).
+8. A grey padlock (locked).
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+
+## 15 — เอฟเฟกต์ด่านบอสและจรวดกระดาษ 🔵 (ไม่บังคับ)
+**ไฟล์:** `15.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 07
+```
+A sprite sheet of 4 separate game effects in one row (left to right), large empty space between them, on a transparent background:
+1. A white folded paper airplane seen from the side, pointing RIGHT, with light blue fold shading (a projectile).
+2. A cluster of twisted dark-green thorny plant roots bursting straight UP out of the ground, tall and narrow, with a few flying dirt chunks, bottom edge flat (it rises from the ground).
+3. A flat red warning circle seen at an angle on the ground (a wide ellipse), with a bold red exclamation mark above it, glowing slightly.
+4. A wide horizontal strip of bubbling bright orange lava surface with yellow highlights and small bubbles, about 6 times wider than tall, whose left and right edges match so it can repeat seamlessly.
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+> วางไฟล์ใน `art/raw/` แล้วรัน `npm run art` เกมจะใช้ภาพใหม่เองอัตโนมัติ (ไอคอน `ui/skill_*`, `fx/proj_paper_plane`, `fx/roots`, `fx/warning_circle`, `fx/lava_wave`)

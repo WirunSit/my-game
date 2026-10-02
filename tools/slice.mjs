@@ -78,6 +78,12 @@ const SHEETS = [
     names: ['test_tube', 'bacteria', 'mushroom', 'fire_spirit', 'storm_cloud'],
   },
   { file: '13.png', dir: 'ui', maxSize: 900, names: ['logo'] },
+  // Optional extras (phase 7): the game uses them when present, drawn-in-code versions otherwise
+  {
+    file: '14.png', dir: 'ui', maxSize: 160,
+    names: ['skill_double', 'skill_triple', 'skill_heal', 'skill_plane', 'skill_stealth', 'skill_special', 'skill_ultimate', 'skill_lock'],
+  },
+  { file: '15.png', dir: 'fx', maxSize: 512, names: ['proj_paper_plane', 'roots', 'warning_circle', 'lava_wave'] },
 ];
 
 // Full-frame backgrounds: no cutting, just resized to the game height and saved as JPEG

@@ -60,10 +60,11 @@ export class StageScene extends ArenaScene {
   private didSplit = false;
   private swells = 0;
   /** Venomroot: where its roots will burst up next */
-  private rootMark: { x: number; y: number; g: Phaser.GameObjects.Graphics } | null = null;
+  private rootMark: { x: number; y: number; g: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image } | null = null;
   /** Magmadon: top of the lava (world y) */
   private lavaY = 0;
   private lava?: Phaser.GameObjects.Graphics;
+  private lavaWave?: Phaser.GameObjects.TileSprite;
   private stormTimer?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -87,6 +88,7 @@ export class StageScene extends ArenaScene {
     this.swells = 0;
     this.rootMark = null;
     this.lava = undefined;
+    this.lavaWave = undefined;
 
     const seed = Math.floor(Math.random() * 1e9);
     const terrain = this.setupArena(seed, this.stage.background, this.stage.ground);
@@ -246,9 +248,16 @@ export class StageScene extends ArenaScene {
     this.rootMark?.g.destroy();
     const x = this.player.x;
     const y = this.terrain.groundBelow(x, this.player.y - 30) ?? this.player.y;
-    const g = this.add.graphics().setDepth(DEPTH.fx);
-    g.lineStyle(5, 0xff3b30, 0.9).strokeEllipse(x, y, 120, 34);
-    g.lineStyle(4, 0xff3b30, 0.9).lineBetween(x - 22, y - 22, x + 22, y + 10).lineBetween(x + 22, y - 22, x - 22, y + 10);
+    let g: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
+    if (this.textures.exists('fx/warning_circle')) {
+      g = this.add.image(x, y, 'fx/warning_circle').setDepth(DEPTH.fx);
+      g.setScale(130 / g.width);
+    } else {
+      const d = this.add.graphics().setDepth(DEPTH.fx);
+      d.lineStyle(5, 0xff3b30, 0.9).strokeEllipse(x, y, 120, 34);
+      d.lineStyle(4, 0xff3b30, 0.9).lineBetween(x - 22, y - 22, x + 22, y + 10).lineBetween(x + 22, y - 22, x - 22, y + 10);
+      g = d;
+    }
     this.tweens.add({ targets: g, alpha: 0.35, duration: 450, yoyo: true, repeat: -1 });
     this.rootMark = { x, y, g };
     this.hud.banner('รากพิษกำลังจะโผล่! เดินหนีออกจากวงแดง', '#ff8866');
@@ -260,9 +269,17 @@ export class StageScene extends ArenaScene {
     this.rootMark = null;
     mark.g.destroy();
     this.focusOn(this.player);
-    const boom = this.add.sprite(mark.x, mark.y, 'fx/explosion_0').setDepth(DEPTH.fx);
-    boom.setScale(130 / 256);
-    boom.play('explosion');
+    if (this.textures.exists('fx/roots')) {
+      // Roots shoot up out of the ground, then sink back
+      const roots = this.add.image(mark.x, mark.y + 10, 'fx/roots').setOrigin(0.5, 1).setDepth(DEPTH.fx);
+      const h = 170 / roots.height;
+      roots.setScale(h, 0);
+      this.tweens.add({ targets: roots, scaleY: h, duration: 220, ease: 'Back.out', yoyo: true, hold: 500, onComplete: () => roots.destroy() });
+    } else {
+      const boom = this.add.sprite(mark.x, mark.y, 'fx/explosion_0').setDepth(DEPTH.fx);
+      boom.setScale(130 / 256);
+      boom.play('explosion');
+    }
     this.cameras.main.shake(200, 0.006);
     this.terrainView.carve(mark.x, mark.y, 40);
     this.hud.drawMinimap(this.terrain);
@@ -287,6 +304,15 @@ export class StageScene extends ArenaScene {
     g.fillStyle(0xffc040, 0.95).fillRect(0, y, WORLD_WIDTH, 5);
     this.tweens.add({ targets: g, alpha: 0.78, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.lava = g;
+    // Wavy lava surface art (art/raw/15.png -> fx/lava_wave), tiled along the top, if added
+    this.lavaWave?.destroy();
+    if (this.textures.exists('fx/lava_wave')) {
+      const frame = this.textures.getFrame('fx/lava_wave');
+      const h = 48;
+      this.lavaWave = this.add.tileSprite(0, y - h / 2, WORLD_WIDTH, h, 'fx/lava_wave').setOrigin(0, 0).setDepth(DEPTH.terrain + 2);
+      this.lavaWave.setTileScale(h / frame.height);
+      this.tweens.add({ targets: this.lavaWave, tilePositionX: frame.width, duration: 6000, repeat: -1 });
+    }
   }
 
   private raiseLava() {
