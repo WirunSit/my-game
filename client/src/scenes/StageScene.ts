@@ -1,6 +1,8 @@
 import * as Phaser from 'phaser';
 import {
+  ENEMY_AIM,
   GAUGE_CORRECT_ANSWER,
+  MAX_WIND,
   QuizDeck,
   RARITY_NAMES,
   SPECIAL_MIN_RARITY,
@@ -8,11 +10,13 @@ import {
   WORLD_WIDTH,
   addExp,
   newlyUnlocked,
+  nextEnemySkill,
   planShot,
   rollDrop,
   stageRewards,
   weaponDef,
   weaponStats,
+  windFactor,
   type Hit,
   type Vec,
 } from '@sciboom/shared';
@@ -50,6 +54,16 @@ export class StageScene extends ArenaScene {
   private enemyTurns = 0;
   private enemySkill = 0;
   private stats = { asked: 0, correct: 0, crystals: 0 };
+  /** Extra enemies that appear during the fight (Mixtron's second body) */
+  private extras: Enemy[] = [];
+  private didSplit = false;
+  private swells = 0;
+  /** Venomroot: where its roots will burst up next */
+  private rootMark: { x: number; y: number; g: Phaser.GameObjects.Graphics } | null = null;
+  /** Magmadon: top of the lava (world y) */
+  private lavaY = 0;
+  private lava?: Phaser.GameObjects.Graphics;
+  private stormTimer?: Phaser.Time.TimerEvent;
 
   constructor() {
     super('Stage');
@@ -67,6 +81,11 @@ export class StageScene extends ArenaScene {
     this.damageMul = 1;
     this.enemyTurns = 0;
     this.stats = { asked: 0, correct: 0, crystals: 0 };
+    this.extras = [];
+    this.didSplit = false;
+    this.swells = 0;
+    this.rootMark = null;
+    this.lava = undefined;
 
     const seed = Math.floor(Math.random() * 1e9);
     const terrain = this.setupArena(seed, this.stage.background, this.stage.ground);
@@ -76,7 +95,8 @@ export class StageScene extends ArenaScene {
     const px = 260 + this.rng.int(0, 100);
     const ex = WORLD_WIDTH - 300;
     this.player = new Fighter(this, 'player', 'คุณ', px, ground(px), 1, { character: save.character, outfit: save.outfit }, weaponStats(equippedWeapon(save)), 0x3a8dde);
-    this.enemy = new Enemy(this, 'enemy', this.stage.enemy, ex, ground(ex));
+    // A copy: some bosses change size during the fight
+    this.enemy = new Enemy(this, 'enemy', { ...this.stage.enemy }, ex, ground(ex));
     this.enemySkill = this.stage.enemy.skill;
     this.combatants = [this.player, this.enemy];
     this.setupHud('WorldMap');
@@ -84,6 +104,7 @@ export class StageScene extends ArenaScene {
 
     this.deck = new QuizDeck(UNITS[this.stage.unit].questions, this.rng, this.stage.maxDifficulty);
     for (let i = 0; i < this.stage.crates; i++) this.spawnCrate();
+    if (this.stage.gimmick === 'lava') this.drawLava(WORLD_HEIGHT - 70);
     this.updateStatus();
 
     this.intro().then(() => this.runMatch());
@@ -99,18 +120,37 @@ export class StageScene extends ArenaScene {
 
   protected async takeTurn(actor: Combatant) {
     if (actor === this.player) await this.playerTurn();
-    else await this.enemyTurn();
+    else if (actor === this.enemy) await this.enemyTurn();
+    else await this.extraTurn(actor as Enemy);
+  }
+
+  /** Win when every enemy is down; lose when the player is */
+  protected matchResult(): Combatant | null | undefined {
+    if (!this.player.alive) return this.enemy;
+    if (!this.enemy.alive && this.extras.every((e) => !e.alive)) return this.player;
+    return undefined;
   }
 
   private async playerTurn() {
     this.enemy.clearStun();
+    if (this.stage.gimmick === 'lava') await this.lavaBurn();
+    if (!this.player.alive) return;
     if (this.turn > 0 && this.turn % 6 === 0 && this.activeCrates() < this.stage.crates) {
       this.spawnCrate();
       this.hud.banner('มีกล่องคำถามใหม่!', '#ffdd33');
       await this.wait(900);
     }
     this.hud.banner('ตาของคุณ!');
+    // Stormlord: the wind swings round part-way through the turn
+    if (this.stage.gimmick === 'storm') {
+      this.stormTimer = this.time.delayedCall(7000, () => {
+        if (this.phase !== 'aiming') return;
+        this.newWind();
+        this.hud.banner('ลมเปลี่ยนทิศ!', '#bfe8ff');
+      });
+    }
     const shots = await this.humanShot(this.player, { damageMul: this.damageMul });
+    this.stormTimer?.remove();
     if (shots.length > 0) {
       this.damageMul = 1;
       // Double-shot item from a question crate: one more normal shot
@@ -124,6 +164,7 @@ export class StageScene extends ArenaScene {
     }
     await this.wait(600);
     await this.openPendingCrates();
+    await this.checkSplit();
     await this.wait(300);
   }
 
@@ -134,18 +175,141 @@ export class StageScene extends ArenaScene {
     this.focusOn(e);
     await this.wait(700);
 
+    if (this.stage.gimmick === 'roots') await this.rootsBurst();
+    if (!this.player.alive) return;
+
     const every = this.stage.ultimateEvery;
     if (every > 0 && this.stage.ultimate && this.enemyTurns % every === 0) {
       await this.enemyUltimate();
+    } else if (this.stage.gimmick === 'swell' && this.enemyTurns % 3 === 1 && this.enemyTurns > 1) {
+      await this.swell();
     } else {
       const plan = this.plan(this.enemySkill);
       await e.windUp();
       const outcome = await this.shoot(e, plan.power, { angle: plan.angle });
       const hitPlayer = outcome.hits.some((h) => h.target === this.player);
       // Like a real player, the computer corrects its aim after a miss
-      this.enemySkill = hitPlayer ? Math.max(this.stage.enemy.skill, this.enemySkill - 0.1) : Math.min(0.95, this.enemySkill + 0.15);
+      this.enemySkill = nextEnemySkill(this.enemySkill, this.stage.enemy.skill, hitPlayer);
     }
+    if (this.stage.gimmick === 'roots' && this.player.alive) this.markRoots();
+    if (this.stage.gimmick === 'lava' && this.enemyTurns % 2 === 0) this.raiseLava();
     await this.wait(800);
+  }
+
+  /** Mixtron's second body (and any other extra enemy) just shoots */
+  private async extraTurn(e: Enemy) {
+    this.hud.showTimer(false);
+    this.focusOn(e);
+    await this.wait(600);
+    const plan = this.plan(e.config.skill, e);
+    await e.windUp();
+    await this.shoot(e, plan.power, { angle: plan.angle });
+    await this.wait(600);
+  }
+
+  // ---- Boss tricks -------------------------------------------------------------
+
+  /** Mixtron: at half health it separates into two bodies (a mixture can be separated!) */
+  private async checkSplit() {
+    const into = this.stage.splitInto;
+    if (this.stage.gimmick !== 'split' || !into || this.didSplit || !this.enemy.alive || this.enemy.hp > this.enemy.maxHp / 2) return;
+    this.didSplit = true;
+    this.focusOn(this.enemy);
+    this.hud.banner(`${this.enemy.name} แยกร่าง!`, '#ff8866');
+    await this.wait(600);
+    const x = Phaser.Math.Clamp(this.enemy.x - 230, 700, WORLD_WIDTH - 200);
+    const extra = new Enemy(this, 'enemy2', { ...into }, x, this.terrain.groundBelow(x, 0) ?? WORLD_HEIGHT / 2);
+    this.extras.push(extra);
+    this.combatants.push(extra);
+    this.floatText(x, extra.y - extra.height - 30, 'สารผสมแยกตัว!', '#ffcc33');
+    await this.wait(1200);
+  }
+
+  /** Amoebox: takes in water by osmosis — heals and grows (bigger, so easier to hit) */
+  private async swell() {
+    const e = this.enemy;
+    const heal = Math.min(150, e.maxHp - e.hp);
+    e.hp += heal;
+    if (this.swells < 2) {
+      this.swells++;
+      e.grow(1.12);
+    }
+    this.hud.refreshHp();
+    this.hud.banner(`${e.name} ดูดน้ำเข้าเซลล์ (ออสโมซิส)!`, '#7dd3ff');
+    if (heal > 0) this.floatText(e.x, e.y - e.height - 30, `+${heal}`, '#7dff8a');
+    await this.wait(1400);
+  }
+
+  /** Venomroot: mark where the player stands; next enemy turn roots burst up there */
+  private markRoots() {
+    this.rootMark?.g.destroy();
+    const x = this.player.x;
+    const y = this.terrain.groundBelow(x, this.player.y - 30) ?? this.player.y;
+    const g = this.add.graphics().setDepth(DEPTH.fx);
+    g.lineStyle(5, 0xff3b30, 0.9).strokeEllipse(x, y, 120, 34);
+    g.lineStyle(4, 0xff3b30, 0.9).lineBetween(x - 22, y - 22, x + 22, y + 10).lineBetween(x + 22, y - 22, x - 22, y + 10);
+    this.tweens.add({ targets: g, alpha: 0.35, duration: 450, yoyo: true, repeat: -1 });
+    this.rootMark = { x, y, g };
+    this.hud.banner('รากพิษกำลังจะโผล่! เดินหนีออกจากวงแดง', '#ff8866');
+  }
+
+  private async rootsBurst() {
+    const mark = this.rootMark;
+    if (!mark) return;
+    this.rootMark = null;
+    mark.g.destroy();
+    this.focusOn(this.player);
+    const boom = this.add.sprite(mark.x, mark.y, 'fx/explosion_0').setDepth(DEPTH.fx);
+    boom.setScale(130 / 256);
+    boom.play('explosion');
+    this.cameras.main.shake(200, 0.006);
+    this.terrainView.carve(mark.x, mark.y, 40);
+    this.hud.drawMinimap(this.terrain);
+    if (Math.abs(this.player.x - mark.x) < 70) {
+      const dmg = this.modifyDamage(this.player, 150);
+      this.player.takeDamage(dmg);
+      this.floatText(this.player.x, this.player.y - this.player.height - 30, `-${dmg}`, '#ff5544');
+      this.hud.banner('โดนรากพิษ!', '#ff5544');
+      this.hud.refreshHp();
+    } else {
+      this.hud.banner('หลบรากพิษได้!', '#7dff8a');
+    }
+    await this.wait(1100);
+  }
+
+  /** Magmadon: lava fills the low ground and rises during the fight */
+  private drawLava(y: number) {
+    this.lavaY = y;
+    this.lava?.destroy();
+    const g = this.add.graphics().setDepth(DEPTH.terrain + 1);
+    g.fillStyle(0xff5a1f, 0.88).fillRect(0, y, WORLD_WIDTH, WORLD_HEIGHT - y);
+    g.fillStyle(0xffc040, 0.95).fillRect(0, y, WORLD_WIDTH, 5);
+    this.tweens.add({ targets: g, alpha: 0.78, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.lava = g;
+  }
+
+  private raiseLava() {
+    const top = Math.max(WORLD_HEIGHT - 160, this.lavaY - 15);
+    if (top === this.lavaY) return;
+    this.drawLava(top);
+    this.hud.banner('ลาวาสูงขึ้น!', '#ff8844');
+  }
+
+  private async lavaBurn() {
+    if (this.player.y < this.lavaY - 4) return;
+    this.focusOn(this.player);
+    this.player.takeDamage(80);
+    this.floatText(this.player.x, this.player.y - this.player.height - 30, '-80', '#ff8844');
+    this.hud.banner('ยืนในลาวา ร้อนมาก! ขึ้นที่สูงเร็ว', '#ff8844');
+    this.hud.refreshHp();
+    await this.wait(900);
+  }
+
+  /** Stormlord: much stronger wind (beginner help only softens it a little) */
+  protected newWind() {
+    if (this.stage.gimmick !== 'storm') return super.newWind();
+    const soften = Math.max(0.7, windFactor(this.assistLevel));
+    this.setWind(Math.round(this.rng.range(-MAX_WIND, MAX_WIND) * soften * 1.4));
   }
 
   /** Charge → question. Right answer interrupts; wrong answer lets the ultimate fire. */
@@ -169,7 +333,7 @@ export class StageScene extends ArenaScene {
 
     this.hud.banner(`${ult.name}!`, '#ff5544');
     await this.wait(700);
-    const plan = this.plan(Math.min(0.95, this.enemySkill + 0.2));
+    const plan = this.plan(Math.min(ENEMY_AIM.max, this.enemySkill + 0.15));
     for (let k = 0; k < ult.shots && this.player.alive; k++) {
       const offset = k - (ult.shots - 1) / 2;
       await this.shoot(e, Phaser.Math.Clamp(plan.power + offset * 3, 10, 100), { weapon: ult.weapon, angle: plan.angle + offset * 2 });
@@ -177,7 +341,7 @@ export class StageScene extends ArenaScene {
     }
   }
 
-  private plan(skill: number) {
+  private plan(skill: number, shooter: Enemy = this.enemy) {
     const targets = this.combatants.filter((c) => c.alive).map((c) => c.toTarget());
     let target = this.player.toTarget();
     // Camouflaged player: the enemy can only guess roughly where they are
@@ -185,7 +349,7 @@ export class StageScene extends ArenaScene {
       target = { ...target, x: target.x + (this.rng.next() < 0.5 ? -1 : 1) * this.rng.range(180, 320) };
       skill = 0;
     }
-    return planShot(this.enemy.muzzle(), this.enemy.facing, target, this.wind, this.terrain, targets, this.enemy.id, skill, this.rng);
+    return planShot(shooter.muzzle(), shooter.facing, target, this.wind, this.terrain, targets, shooter.id, skill, this.rng);
   }
 
   // ---- Questions & items ----------------------------------------------------
@@ -271,7 +435,7 @@ export class StageScene extends ArenaScene {
   private spawnCrate() {
     for (let tries = 0; tries < 30; tries++) {
       const x = this.rng.int(520, WORLD_WIDTH - 560);
-      const tooClose = [this.player, this.enemy, ...this.crates.filter((c) => !c.opened)].some((o) => Math.abs(o.x - x) < 140);
+      const tooClose = [this.player, this.enemy, ...this.extras, ...this.crates.filter((c) => !c.opened)].some((o) => Math.abs(o.x - x) < 140);
       const y = this.terrain.groundBelow(x, 0);
       if (tooClose || y === null) continue;
       this.crates.push(new Crate(this, x, y));

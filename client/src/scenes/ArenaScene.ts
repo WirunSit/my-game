@@ -112,6 +112,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   /** The fighter whose input is being read right now */
   protected human: Fighter | null = null;
 
+  /** Index in `combatants` of whoever acts next (combatants may be added mid-match, e.g. a boss splitting) */
+  private cursor = 0;
   private timeLeft = 0;
   private walkLeft = 0;
   private power = 0;
@@ -138,6 +140,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.combatants = [];
     this.phase = 'idle';
     this.turn = 0;
+    this.cursor = 0;
     this.playback = null;
     this.skills = new Map();
     this.burns = new Map();
@@ -167,7 +170,8 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** HUD + controls. Call after this.combatants holds the two sides (left, right). */
   protected setupHud(menuScene = 'Menu') {
-    this.hud = new Hud(this, this.combatants, WORLD_WIDTH);
+    // The HUD shows the two sides that exist now; extra enemies later don't get a panel
+    this.hud = new Hud(this, [...this.combatants], WORLD_WIDTH);
     this.hud.drawMinimap(this.terrain);
     this.controls = new Controls(this);
     this.controls.onFireDown = () => {
@@ -207,7 +211,7 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected async runMatch() {
     const token = ++this.matchToken;
     for (;;) {
-      const actor = this.combatants[this.turn % this.combatants.length];
+      const actor = this.combatants[this.cursor % this.combatants.length];
       if (actor.alive) {
         this.newWind();
         this.hud.setActive(this.combatants.indexOf(actor));
@@ -220,13 +224,20 @@ export abstract class ArenaScene extends Phaser.Scene {
         await this.waitSettled();
         if (token !== this.matchToken) return;
       }
-      const alive = this.combatants.filter((c) => c.alive);
-      if (alive.length <= 1) {
-        this.endMatch(alive[0] ?? null);
+      const result = this.matchResult();
+      if (result !== undefined) {
+        this.endMatch(result);
         return;
       }
       this.turn++;
+      this.cursor = (this.cursor + 1) % this.combatants.length;
     }
+  }
+
+  /** The winner (null = draw) once the match is over, or undefined while it goes on */
+  protected matchResult(): Combatant | null | undefined {
+    const alive = this.combatants.filter((c) => c.alive);
+    return alive.length <= 1 ? (alive[0] ?? null) : undefined;
   }
 
   protected endMatch(winner: Combatant | null) {

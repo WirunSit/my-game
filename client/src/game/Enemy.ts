@@ -38,7 +38,7 @@ export class Enemy implements Combatant {
   private readonly root: Phaser.GameObjects.Container;
   private readonly body: Phaser.GameObjects.Image;
   private readonly nameTag: Phaser.GameObjects.Text;
-  private readonly baseScale: number;
+  private baseScale: number;
   private chargeFx?: Phaser.GameObjects.Image;
   private stunStars: Phaser.GameObjects.Image[] = [];
   private breathing: Phaser.Tweens.Tween;
@@ -70,8 +70,12 @@ export class Enemy implements Combatant {
       .setOrigin(0.5, 1)
       .setDepth(DEPTH.fighter);
 
-    // Gentle idle "breathing" so the monster feels alive
-    this.breathing = scene.tweens.add({
+    this.breathing = this.breathe();
+  }
+
+  /** Gentle idle "breathing" so the monster feels alive */
+  private breathe(): Phaser.Tweens.Tween {
+    return this.scene.tweens.add({
       targets: this.body,
       scaleY: this.baseScale * 1.04,
       scaleX: this.baseScale * 0.98,
@@ -80,6 +84,26 @@ export class Enemy implements Combatant {
       repeat: -1,
       ease: 'Sine.inOut',
     });
+  }
+
+  /** Get bigger (Amoebox swelling): a bigger picture and a bigger hit circle */
+  grow(factor: number) {
+    const c = this.config;
+    c.height = Math.round(c.height * factor);
+    c.hitRadius = Math.round(c.hitRadius * factor);
+    c.hitOffsetY = Math.round(c.hitOffsetY * factor);
+    c.muzzle = { x: c.muzzle.x * factor, y: c.muzzle.y * factor };
+    this.breathing.stop();
+    this.baseScale *= factor;
+    this.scene.tweens.add({
+      targets: this.body,
+      scaleX: this.baseScale,
+      scaleY: this.baseScale,
+      duration: 500,
+      ease: 'Back.out',
+      onComplete: () => (this.breathing = this.breathe()),
+    });
+    this.sync();
   }
 
   get name(): string {

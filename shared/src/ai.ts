@@ -49,3 +49,16 @@ export function planShot(
     power: Math.max(10, Math.min(100, best.power + rng.range(-powerError, powerError))),
   };
 }
+
+/** How computer enemies sharpen their aim during a fight (like players do), and the limit */
+export const ENEMY_AIM = {
+  /** Better after each miss */
+  missStep: 0.12,
+  /** A little worse again after a hit (never below the stage's starting skill) */
+  hitStep: 0.1,
+  max: 0.85,
+};
+
+export function nextEnemySkill(current: number, base: number, hit: boolean): number {
+  return hit ? Math.max(base, current - ENEMY_AIM.hitStep) : Math.min(ENEMY_AIM.max, current + ENEMY_AIM.missStep);
+}

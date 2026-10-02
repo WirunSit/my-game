@@ -85,7 +85,7 @@ await page.keyboard.up('Space');
 await stage(() => {
   const s = window.game.scene.getScene('Stage');
   s.pendingCrates = 1;
-  s.enemyTurns = 1; // the boss's next turn will be its ultimate
+  s.enemyTurns = 2; // the boss's next turn will be its ultimate (every 3rd)
 });
 await until(() => window.game.scene.getScene('Stage').phase === 'quiz');
 await wait(500);
