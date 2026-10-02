@@ -51,7 +51,7 @@ const SHEETS = [
     ],
   },
   {
-    file: '08.png', dir: 'ui', maxSize: 192, merge: 0, alphaMin: 128, // gear and trophy almost touch
+    file: '08.png', dir: 'ui', maxSize: 320, merge: 0, alphaMin: 128, // gear and trophy almost touch
     names: [
       'crate', 'coin', 'crystal', 'star',
       'heart', 'wind_arrow', 'btn_fire', 'btn_arrow',

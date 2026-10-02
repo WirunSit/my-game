@@ -392,98 +392,98 @@
  {
   "key": "ui/crate",
   "path": "assets/ui/crate.png",
-  "width": 192,
-  "height": 163
+  "width": 273,
+  "height": 232
  },
  {
   "key": "ui/coin",
   "path": "assets/ui/coin.png",
-  "width": 182,
-  "height": 192
+  "width": 225,
+  "height": 238
  },
  {
   "key": "ui/crystal",
   "path": "assets/ui/crystal.png",
-  "width": 156,
-  "height": 192
+  "width": 210,
+  "height": 258
  },
  {
   "key": "ui/star",
   "path": "assets/ui/star.png",
-  "width": 192,
-  "height": 184
+  "width": 239,
+  "height": 229
  },
  {
   "key": "ui/heart",
   "path": "assets/ui/heart.png",
-  "width": 192,
-  "height": 152
+  "width": 265,
+  "height": 210
  },
  {
   "key": "ui/wind_arrow",
   "path": "assets/ui/wind_arrow.png",
-  "width": 192,
-  "height": 127
+  "width": 320,
+  "height": 212
  },
  {
   "key": "ui/btn_fire",
   "path": "assets/ui/btn_fire.png",
-  "width": 192,
-  "height": 150
+  "width": 277,
+  "height": 216
  },
  {
   "key": "ui/btn_arrow",
   "path": "assets/ui/btn_arrow.png",
-  "width": 192,
-  "height": 179
+  "width": 239,
+  "height": 223
  },
  {
   "key": "ui/gauge",
   "path": "assets/ui/gauge.png",
-  "width": 192,
-  "height": 111
+  "width": 320,
+  "height": 185
  },
  {
   "key": "ui/bar_power",
   "path": "assets/ui/bar_power.png",
-  "width": 192,
-  "height": 65
+  "width": 320,
+  "height": 108
  },
  {
   "key": "ui/bar_hp",
   "path": "assets/ui/bar_hp.png",
-  "width": 192,
-  "height": 61
+  "width": 320,
+  "height": 101
  },
  {
   "key": "ui/gear",
   "path": "assets/ui/gear.png",
-  "width": 192,
-  "height": 186
+  "width": 253,
+  "height": 245
  },
  {
   "key": "ui/sound",
   "path": "assets/ui/sound.png",
-  "width": 192,
-  "height": 159
+  "width": 276,
+  "height": 229
  },
  {
   "key": "ui/book",
   "path": "assets/ui/book.png",
-  "width": 192,
-  "height": 127
+  "width": 320,
+  "height": 212
  },
  {
   "key": "ui/chest",
   "path": "assets/ui/chest.png",
-  "width": 192,
-  "height": 152
+  "width": 320,
+  "height": 253
  },
  {
   "key": "ui/trophy",
   "path": "assets/ui/trophy.png",
-  "width": 192,
-  "height": 177
+  "width": 269,
+  "height": 248
  },
  {
   "key": "bosses/mixtron",

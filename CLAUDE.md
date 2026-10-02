@@ -44,6 +44,9 @@
 - แผนเกมทั้งหมดอยู่ที่ docs/GAME_DESIGN.md — อ่านก่อนเริ่มงานทุกครั้ง
 - พรอมต์สร้างภาพด้วย GPT อยู่ที่ docs/ART_PROMPTS.md ผู้ใช้จะอัปโหลดภาพเข้า art/raw/
 - เทคโนโลยี: Phaser 4 + TypeScript + Vite (โฟลเดอร์ client/), ใช้ npm workspaces
+  - shared/ = ตรรกะเกมที่ไม่มีภาพ (ฟิสิกส์, พื้น, อาวุธ) ใช้ร่วมกับเซิร์ฟเวอร์ PvP ในอนาคต — ห้าม import Phaser ในนี้
+  - tools/ = สคริปต์ตัด sprite sheet (`npm run art`) และทดสอบเล่นอัตโนมัติ (`npm run playtest -w tools`)
+  - Cloud Shell ไม่มีการ์ดจอ: WebGL ช้ามาก เกมจึงเลือก Canvas อัตโนมัติเมื่อเจอ GPU แบบซอฟต์แวร์
 - รันเกมทดสอบ: `npm run dev` ที่ ~/my-game แล้วเปิด Web Preview พอร์ต 8080
 - คลังคำถามอยู่ที่ content/questions/*.json (AI ร่างไว้ `reviewed: false` รอครูตรวจ)
 - เมื่อเริ่มเซสชัน ให้อ่าน PROGRESS.md เพื่อดูว่าค้างอะไรอยู่

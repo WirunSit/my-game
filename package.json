@@ -3,13 +3,14 @@
   "private": true,
   "description": "SciBoom! — artillery game for Thai grade 7 science",
   "workspaces": [
+    "shared",
     "client",
     "tools"
   ],
   "scripts": {
     "dev": "npm run dev -w client",
     "build": "npm run build -w client",
-    "typecheck": "npm run typecheck -w client",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w client",
     "art": "npm run slice -w tools",
     "art:debug": "npm run slice -w tools -- --debug"
   }
