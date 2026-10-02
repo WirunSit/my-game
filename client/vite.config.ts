@@ -13,6 +13,12 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: ['.cloudshell.dev'],
     hmr: inCloudShell ? { clientPort: 443 } : true,
+    // The server (npm run dev starts it on 8081) answers /api and /ws; forwarding
+    // keeps everything on one port, which is all Cloud Shell's Web Preview shows
+    proxy: {
+      '/api': 'http://localhost:8081',
+      '/ws': { target: 'ws://localhost:8081', ws: true },
+    },
   },
   preview: {
     host: '0.0.0.0',

@@ -9,9 +9,13 @@
     "tools"
   ],
   "scripts": {
-    "dev": "npm run dev -w client",
+    "dev": "node tools/dev.mjs",
+    "dev:game": "npm run dev -w client",
+    "dev:server": "npm run dev -w server",
     "build": "npm run build -w client",
+    "start": "npm run start -w server",
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client",
+    "test": "npm test -w shared && npm test -w server",
     "art": "npm run slice -w tools",
     "art:debug": "npm run slice -w tools -- --debug"
   }

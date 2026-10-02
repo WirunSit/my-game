@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
+import { FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { addTextButton } from '../ui/TextButton';
 import { drawArtBackground } from '../game/background';
 
@@ -39,7 +39,7 @@ export class MenuScene extends Phaser.Scene {
       width: 460,
     });
     addTextButton(this, GAME_WIDTH / 2, 420, 'ผจญภัย (ด่านบอส)', () => this.scene.start('WorldMap'), { width: 460, color: 0x8a5cf6 });
-    addTextButton(this, GAME_WIDTH / 2, 510, 'PvP ออนไลน์ (เร็ว ๆ นี้)', () => {}, { width: 460, disabled: true });
+    addTextButton(this, GAME_WIDTH / 2, 510, 'เล่นกับเพื่อน (ออนไลน์)', () => this.scene.start('Lobby'), { width: 460, color: 0x2fbf5b });
 
     // Phones: fullscreen hides the browser bar and gives a bigger game
     if (this.sys.game.device.input.touch) {
@@ -51,10 +51,6 @@ export class MenuScene extends Phaser.Scene {
       });
     }
 
-    this.add
-      .text(GAME_WIDTH - 12, GAME_HEIGHT - 10, 'ขั้นที่ 2: ด่านบอส + คำถาม', { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#ffffff' })
-      .setOrigin(1, 1)
-      .setAlpha(0.7);
   }
 
   private goFullscreen() {

@@ -95,10 +95,18 @@ export class Fighter implements Combatant {
     this.shieldImg?.setVisible(on);
   }
 
-  /** Camouflage skill: nearly see-through until the start of our next turn */
-  setStealth(on: boolean) {
+  /** Camouflage skill: nearly see-through until the start of our next turn (`alpha`: how much still shows) */
+  setStealth(on: boolean, alpha = 0.22) {
     this.hidden = on;
-    this.scene.tweens.add({ targets: [this.root, this.nameTag], alpha: on ? 0.22 : 1, duration: 400 });
+    this.scene.tweens.add({ targets: [this.root, this.nameTag], alpha: on ? alpha : 1, duration: 400 });
+  }
+
+  /** Put the fighter exactly where the PvP server says it is */
+  snapTo(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+    this.vy = 0;
+    this.sync();
   }
 
   /** Paper-plane skill: vanish in a puff of dust and reappear at (x, y) */

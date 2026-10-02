@@ -15,6 +15,8 @@ export interface AnswerRecord {
 }
 
 export interface SaveData {
+  /** Name shown to other players (PvP) */
+  nickname: string;
   character: Character;
   /** Best stars per cleared stage, e.g. { "1-1": 3 } */
   stars: Record<string, number>;
@@ -37,7 +39,7 @@ const MAX_ANSWERS = 500;
 const STARTER: WeaponItem = { uid: 'starter', id: 'starter_cannon', rarity: 1, level: 1 };
 
 function fresh(): SaveData {
-  return { character: 'boy', stars: {}, crystals: 0, coins: 0, level: 1, exp: 0, weapons: [{ ...STARTER }], equipped: STARTER.uid, outfit: { ...EMPTY_OUTFIT }, answers: [] };
+  return { nickname: '', character: 'boy', stars: {}, crystals: 0, coins: 0, level: 1, exp: 0, weapons: [{ ...STARTER }], equipped: STARTER.uid, outfit: { ...EMPTY_OUTFIT }, answers: [] };
 }
 
 /** Fix up saves from older versions or hand-edited storage */

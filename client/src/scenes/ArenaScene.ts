@@ -263,7 +263,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.human = f;
     const sk = this.skills.get(f);
     if (sk) {
-      startSkillTurn(sk);
+      this.beginSkillTurn(sk);
       this.skillBar.setIcons(f.weapon.id, f.portraitKey);
       this.skillBar.setVisible(true);
       this.refreshSkills();
@@ -296,6 +296,11 @@ export abstract class ArenaScene extends Phaser.Scene {
   }
 
   // ---- Skills ---------------------------------------------------------------
+
+  /** Hook: a fighter's turn starts (online games get the new state from the server instead) */
+  protected beginSkillTurn(sk: SkillState) {
+    startSkillTurn(sk);
+  }
 
   /** Give a human fighter item skills, a special and the knowledge gauge for this match */
   protected enableSkills(f: Fighter, specialUnlocked: boolean) {

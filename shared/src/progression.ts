@@ -142,6 +142,11 @@ export function rollDrop(table: DropTable, rng: Rng): { id: string; rarity: numb
   return { id, rarity };
 }
 
+/** PvP: everyone learns something — the loser gets EXP too */
+export function pvpRewards(won: boolean): { exp: number; coins: number } {
+  return won ? { exp: 70, coins: 50 } : { exp: 30, coins: 20 };
+}
+
 /** EXP and coins for finishing a stage. Right answers are worth more than winning. */
 export function stageRewards(opts: { won: boolean; stars: number; correct: number; isBoss: boolean }): { exp: number; coins: number } {
   const perAnswer = 20;
