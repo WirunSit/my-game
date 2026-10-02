@@ -6,6 +6,7 @@ import { Costume, type Pose } from '../game/Costume';
 /**
  * Developer page (open the game with ?costumes&p=0..8): every body picture
  * wearing one set of items, to check that hats and glasses sit right.
+ * Add &suits to see the suits' hurt and victory pictures instead.
  * tools/costumes.mjs screenshots every page into art/debug/costumes/.
  */
 export class CostumeSheetScene extends Phaser.Scene {
@@ -15,7 +16,9 @@ export class CostumeSheetScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#d8dde8');
-    const page = Number(new URLSearchParams(location.search).get('p') ?? 0);
+    const query = new URLSearchParams(location.search);
+    const page = Number(query.get('p') ?? 0);
+    const suitPoses = query.has('suits');
     const ids = (slot: string) => COSMETIC_CATALOG.filter((c) => c.slot === slot).map((c) => c.id);
     const hats = ids('hat');
     const faces = ids('face');
@@ -25,6 +28,10 @@ export class CostumeSheetScene extends Phaser.Scene {
 
     const bodies: { character: Character; suit: string | null; pose: Pose }[] = [];
     for (const character of ['boy', 'girl'] as const) {
+      if (suitPoses) {
+        for (const pose of ['hurt', 'win'] as const) for (const suit of ids('suit')) bodies.push({ character, suit, pose });
+        continue;
+      }
       for (const pose of ['side', 'hurt', 'win'] as const) bodies.push({ character, suit: null, pose });
       for (const suit of ids('suit')) bodies.push({ character, suit, pose: 'side' });
     }

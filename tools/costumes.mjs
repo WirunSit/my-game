@@ -12,11 +12,15 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ args: ['--disable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.error(`pageerror: ${e.message}`));
-for (let p = 0; p < pages; p++) {
-  await page.goto(`http://localhost:8080/?costumes&p=${p}`);
-  await page.waitForFunction(() => window.game?.scene.isActive('CostumeSheet'));
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: `${out}/p${p}.png` });
-  console.log(`saved ${out}/p${p}.png`);
+// Plain pages: school uniform poses + suits standing. "suits" pages: suits hurt + victory.
+for (const suits of [false, true]) {
+  for (let p = 0; p < pages; p++) {
+    await page.goto(`http://localhost:8080/?costumes&p=${p}${suits ? '&suits' : ''}`);
+    await page.waitForFunction(() => window.game?.scene.isActive('CostumeSheet'));
+    await page.waitForTimeout(300);
+    const file = `${out}/${suits ? 'suits-' : ''}p${p}.png`;
+    await page.screenshot({ path: file });
+    console.log(`saved ${file}`);
+  }
 }
 await browser.close();

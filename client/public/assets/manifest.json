@@ -84,6 +84,78 @@
   "height": 320
  },
  {
+  "key": "outfits/boy_lab_hurt",
+  "path": "assets/outfits/boy_lab_hurt.png",
+  "width": 297,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_explorer_hurt",
+  "path": "assets/outfits/boy_explorer_hurt.png",
+  "width": 297,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_firefighter_hurt",
+  "path": "assets/outfits/boy_firefighter_hurt.png",
+  "width": 260,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_lab_win",
+  "path": "assets/outfits/boy_lab_win.png",
+  "width": 206,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_explorer_win",
+  "path": "assets/outfits/boy_explorer_win.png",
+  "width": 204,
+  "height": 320
+ },
+ {
+  "key": "outfits/boy_firefighter_win",
+  "path": "assets/outfits/boy_firefighter_win.png",
+  "width": 205,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_lab_hurt",
+  "path": "assets/outfits/girl_lab_hurt.png",
+  "width": 320,
+  "height": 319
+ },
+ {
+  "key": "outfits/girl_explorer_hurt",
+  "path": "assets/outfits/girl_explorer_hurt.png",
+  "width": 313,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_firefighter_hurt",
+  "path": "assets/outfits/girl_firefighter_hurt.png",
+  "width": 282,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_lab_win",
+  "path": "assets/outfits/girl_lab_win.png",
+  "width": 234,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_explorer_win",
+  "path": "assets/outfits/girl_explorer_win.png",
+  "width": 238,
+  "height": 320
+ },
+ {
+  "key": "outfits/girl_firefighter_win",
+  "path": "assets/outfits/girl_firefighter_win.png",
+  "width": 234,
+  "height": 320
+ },
+ {
   "key": "hats/grad_cap",
   "path": "assets/hats/grad_cap.png",
   "width": 160,
