@@ -68,6 +68,27 @@ const SHEETS = [
     file: '10.png', dir: 'minions', maxSize: 256,
     names: ['test_tube', 'bacteria', 'mushroom', 'fire_spirit', 'storm_cloud'],
   },
+  { file: '13.png', dir: 'ui', maxSize: 900, names: ['logo'] },
+];
+
+// Full-frame backgrounds: no cutting, just resized to the game height and saved as JPEG
+const BACKGROUNDS = [
+  { file: '11a.png', name: 'world1_lab' },
+  { file: '11b.png', name: 'world2_cell' },
+  { file: '11c.png', name: 'world3_forest' },
+  { file: '11d.png', name: 'world4_volcano' },
+  { file: '11e.png', name: 'world5_sky' },
+  { file: '11f.png', name: 'menu_school' },
+  { file: '11g.png', name: 'pvp_arena' },
+];
+const BACKGROUND_HEIGHT = 720;
+
+// Opaque grids split by thin light lines (the terrain texture sheet)
+const GRIDS = [
+  {
+    file: '12.png', dir: 'terrain', size: 384,
+    names: ['lab_stone', 'cell_tissue', 'soil_roots', 'lava_rock', 'cloud', 'arena_candy'],
+  },
 ];
 
 const ALPHA_MIN = 16; // pixels fainter than this count as background
@@ -240,6 +261,57 @@ for (const sheet of SHEETS) {
       .composite([{ input: src }, { input: Buffer.from(svg) }])
       .jpeg({ quality: 70 })
       .toFile(`${DEBUG_DIR}/${sheet.file.replace('.png', '.jpg')}`);
+  }
+}
+
+for (const bg of BACKGROUNDS) {
+  const src = `${RAW}/${bg.file}`;
+  if (!existsSync(src)) { console.log(`- ${bg.file}: not uploaded yet, skipped`); continue; }
+  mkdirSync(`${OUT}/backgrounds`, { recursive: true });
+  const rel = `backgrounds/${bg.name}.jpg`;
+  const info = await sharp(src).resize({ height: BACKGROUND_HEIGHT }).jpeg({ quality: 82, mozjpeg: true }).toFile(`${OUT}/${rel}`);
+  manifest.push({ key: `backgrounds/${bg.name}`, path: `assets/${rel}`, width: info.width, height: info.height });
+  console.log(`✓ ${bg.file}: background ${info.width}x${info.height}`);
+}
+
+for (const grid of GRIDS) {
+  const src = `${RAW}/${grid.file}`;
+  if (!existsSync(src)) { console.log(`- ${grid.file}: not uploaded yet, skipped`); continue; }
+  const { data, info } = await sharp(src).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: w, height: h } = info;
+  const light = (x, y) => { const o = (y * w + x) * 3; return data[o] > 225 && data[o + 1] > 225 && data[o + 2] > 225; };
+  // A gap line is a row/column that is mostly near-white; cells are the spans between gaps
+  const spans = (len, isLight) => {
+    const out = [];
+    let start = 0;
+    for (let i = 0; i <= len; i++) {
+      if (i === len || isLight(i)) {
+        if (i - start > len / 8) out.push([start, i]);
+        start = i + 1;
+      }
+    }
+    return out;
+  };
+  const cols = spans(w, (x) => { let c = 0; for (let y = 0; y < h; y++) c += light(x, y); return c / h > 0.5; });
+  const rows = spans(h, (y) => { let c = 0; for (let x = 0; x < w; x++) c += light(x, y); return c / w > 0.5; });
+  const cells = rows.flatMap(([y0, y1]) => cols.map(([x0, x1]) => ({ x0, x1, y0, y1 })));
+  if (cells.length !== grid.names.length) {
+    problems++;
+    console.log(`✗ ${grid.file}: found ${cells.length} cells, expected ${grid.names.length}`);
+  } else {
+    console.log(`✓ ${grid.file}: ${cells.length} cells`);
+  }
+  mkdirSync(`${OUT}/${grid.dir}`, { recursive: true });
+  for (const [i, c] of cells.entries()) {
+    const name = grid.names[i] ?? `extra_${i}`;
+    const inset = 3; // skip anti-aliased edge pixels next to the gap
+    const rel = `${grid.dir}/${name}.png`;
+    await sharp(src)
+      .extract({ left: c.x0 + inset, top: c.y0 + inset, width: c.x1 - c.x0 - inset * 2, height: c.y1 - c.y0 - inset * 2 })
+      .resize(grid.size, grid.size)
+      .png({ compressionLevel: 9 })
+      .toFile(`${OUT}/${rel}`);
+    manifest.push({ key: `${grid.dir}/${name}`, path: `assets/${rel}`, width: grid.size, height: grid.size });
   }
 }
 

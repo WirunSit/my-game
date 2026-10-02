@@ -13,7 +13,7 @@ import {
   type Vec,
 } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
-import { drawSkyBackground } from '../game/background';
+import { drawArtBackground } from '../game/background';
 import { Fighter, LOOKS } from '../game/Fighter';
 import { TerrainView } from '../game/TerrainView';
 import { Controls } from '../ui/Controls';
@@ -69,9 +69,9 @@ export class BattleScene extends Phaser.Scene {
     this.turn = 0;
     this.flight = null;
 
-    drawSkyBackground(this, WORLD_WIDTH, true);
+    drawArtBackground(this, 'backgrounds/pvp_arena', WORLD_WIDTH);
     const terrain = Terrain.generate(seed);
-    this.terrainView = new TerrainView(this, terrain);
+    this.terrainView = new TerrainView(this, terrain, 'terrain/arena_candy');
 
     const spawn = (x: number) => terrain.groundBelow(x, 0) ?? WORLD_HEIGHT / 2;
     const x1 = 260 + this.rng.int(0, 120);

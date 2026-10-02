@@ -544,5 +544,89 @@
   "path": "assets/minions/storm_cloud.png",
   "width": 256,
   "height": 242
+ },
+ {
+  "key": "ui/logo",
+  "path": "assets/ui/logo.png",
+  "width": 900,
+  "height": 335
+ },
+ {
+  "key": "backgrounds/world1_lab",
+  "path": "assets/backgrounds/world1_lab.jpg",
+  "width": 1960,
+  "height": 720
+ },
+ {
+  "key": "backgrounds/world2_cell",
+  "path": "assets/backgrounds/world2_cell.jpg",
+  "width": 1960,
+  "height": 720
+ },
+ {
+  "key": "backgrounds/world3_forest",
+  "path": "assets/backgrounds/world3_forest.jpg",
+  "width": 1960,
+  "height": 720
+ },
+ {
+  "key": "backgrounds/world4_volcano",
+  "path": "assets/backgrounds/world4_volcano.jpg",
+  "width": 1960,
+  "height": 720
+ },
+ {
+  "key": "backgrounds/world5_sky",
+  "path": "assets/backgrounds/world5_sky.jpg",
+  "width": 1961,
+  "height": 720
+ },
+ {
+  "key": "backgrounds/menu_school",
+  "path": "assets/backgrounds/menu_school.jpg",
+  "width": 1960,
+  "height": 720
+ },
+ {
+  "key": "backgrounds/pvp_arena",
+  "path": "assets/backgrounds/pvp_arena.jpg",
+  "width": 1960,
+  "height": 720
+ },
+ {
+  "key": "terrain/lab_stone",
+  "path": "assets/terrain/lab_stone.png",
+  "width": 384,
+  "height": 384
+ },
+ {
+  "key": "terrain/cell_tissue",
+  "path": "assets/terrain/cell_tissue.png",
+  "width": 384,
+  "height": 384
+ },
+ {
+  "key": "terrain/soil_roots",
+  "path": "assets/terrain/soil_roots.png",
+  "width": 384,
+  "height": 384
+ },
+ {
+  "key": "terrain/lava_rock",
+  "path": "assets/terrain/lava_rock.png",
+  "width": 384,
+  "height": 384
+ },
+ {
+  "key": "terrain/cloud",
+  "path": "assets/terrain/cloud.png",
+  "width": 384,
+  "height": 384
+ },
+ {
+  "key": "terrain/arena_candy",
+  "path": "assets/terrain/arena_candy.png",
+  "width": 384,
+  "height": 384
  }
 ]

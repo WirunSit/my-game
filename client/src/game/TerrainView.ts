@@ -10,15 +10,21 @@ export class TerrainView {
   private readonly texture: Phaser.Textures.CanvasTexture;
   private readonly ctx: CanvasRenderingContext2D;
 
+  /**
+   * @param groundKey texture from art sheet 12 (e.g. 'terrain/arena_candy'); its top edge
+   *                  (grass/crust) follows the ground surface. Omit to use drawn soil.
+   */
   constructor(
     scene: Phaser.Scene,
     readonly terrain: Terrain,
+    groundKey?: string,
   ) {
     const key = 'terrain';
     if (scene.textures.exists(key)) scene.textures.remove(key);
     this.texture = scene.textures.createCanvas(key, terrain.width, terrain.height)!;
     this.ctx = this.texture.getContext();
-    this.paint();
+    if (groundKey && scene.textures.exists(groundKey)) this.paintTextured(scene, groundKey);
+    else this.paint();
     scene.add.image(0, 0, key).setOrigin(0).setDepth(DEPTH.terrain);
   }
 
@@ -55,6 +61,53 @@ export class TerrainView {
         px[o] = r;
         px[o + 1] = g;
         px[o + 2] = b;
+        px[o + 3] = 255;
+      }
+    }
+    this.ctx.putImageData(img, 0, 0);
+    this.texture.refresh();
+  }
+
+  /**
+   * Map the ground texture so its top band sits on the surface everywhere, then
+   * mirror-repeat the lower part going down (mirroring hides tile seams).
+   */
+  private paintTextured(scene: Phaser.Scene, groundKey: string) {
+    const src = scene.textures.get(groundKey).getSourceImage() as HTMLImageElement;
+    const tileCanvas = document.createElement('canvas');
+    tileCanvas.width = src.width;
+    tileCanvas.height = src.height;
+    const tctx = tileCanvas.getContext('2d')!;
+    tctx.drawImage(src, 0, 0);
+    const tile = tctx.getImageData(0, 0, src.width, src.height).data;
+    const T = src.width;
+
+    const SCALE = 0.55; // shown at 55% so the grass band isn't too thick
+    const TOP_BAND = 0.35; // top 35% of the tile is the surface crust
+    const mirror = (v: number, n: number) => {
+      const m = v % (2 * n);
+      return m < n ? m : 2 * n - 1 - m;
+    };
+
+    const { width: w, height: h, mask } = this.terrain;
+    const img = this.ctx.createImageData(w, h);
+    const px = img.data;
+    for (let x = 0; x < w; x++) {
+      const u = mirror(Math.floor(x / SCALE), T);
+      let top = -1;
+      for (let y = 0; y < h; y++) {
+        const i = y * w + x;
+        if (!mask[i]) continue;
+        if (top < 0) top = y;
+        const d = Math.floor((y - top) / SCALE);
+        const band = Math.floor(T * TOP_BAND);
+        const v = d < T ? d : band + mirror(d - T, T - band);
+        const t = (v * T + u) * 4;
+        const shade = Math.max(0.6, 1 - (y - top) / 1100);
+        const o = i * 4;
+        px[o] = tile[t] * shade;
+        px[o + 1] = tile[t + 1] * shade;
+        px[o + 2] = tile[t + 2] * shade;
         px[o + 3] = 255;
       }
     }

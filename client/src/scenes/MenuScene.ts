@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { addTextButton } from '../ui/TextButton';
-import { drawSkyBackground } from '../game/background';
+import { drawArtBackground } from '../game/background';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -9,20 +9,15 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    drawSkyBackground(this, GAME_WIDTH, false);
+    drawArtBackground(this, 'backgrounds/menu_school', GAME_WIDTH, 0);
+    // Soft dark band behind the buttons so they stay readable over the busy picture
+    this.add.rectangle(GAME_WIDTH / 2, 420, 560, 300, 0x1b1d3a, 0.35).setStrokeStyle(0);
 
+    const logo = this.add.image(GAME_WIDTH / 2, 115, 'ui/logo');
+    logo.setScale(560 / logo.width);
+    this.tweens.add({ targets: logo, scale: logo.scale * 1.04, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.add
-      .text(GAME_WIDTH / 2, 120, 'SciBoom!', {
-        fontFamily: FONT_FAMILY,
-        fontSize: '110px',
-        fontStyle: '700',
-        color: '#ffcc33',
-        stroke: TEXT_STROKE,
-        strokeThickness: 12,
-      })
-      .setOrigin(0.5);
-    this.add
-      .text(GAME_WIDTH / 2, 215, 'บูมวิทย์ — เกมยิงวิทยาศาสตร์ ม.1', {
+      .text(GAME_WIDTH / 2, 228, 'บูมวิทย์ — เกมยิงวิทยาศาสตร์ ม.1', {
         fontFamily: FONT_FAMILY,
         fontSize: '34px',
         color: '#ffffff',

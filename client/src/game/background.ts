@@ -47,3 +47,19 @@ export function drawSkyBackground(scene: Phaser.Scene, width: number, parallax: 
     g.fillPath();
   }
 }
+
+/**
+ * GPT-made background art. It's wider than the screen and scrolls at `factor`
+ * of the camera speed so it feels far away. Falls back to the drawn sky if missing.
+ */
+export function drawArtBackground(scene: Phaser.Scene, key: string, worldWidth: number, factor = 0.5) {
+  if (!scene.textures.exists(key)) {
+    drawSkyBackground(scene, worldWidth, true);
+    return;
+  }
+  const img = scene.add.image(-30, -30, key).setOrigin(0).setScrollFactor(factor).setDepth(DEPTH.background);
+  // Tall enough to hide camera shake; wide enough to cover the whole parallax range
+  const needW = scene.scale.width + (worldWidth - scene.scale.width) * factor + 60;
+  const scale = Math.max((GAME_HEIGHT + 60) / img.height, needW / img.width);
+  img.setScale(scale);
+}
