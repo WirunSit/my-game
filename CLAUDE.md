@@ -20,6 +20,11 @@
 - ดูหน้าเว็บที่รันอยู่ได้ผ่านปุ่ม Web Preview ของ Cloud Shell (ค่าเริ่มต้นพอร์ต 8080)
   เวลารันเซิร์ฟเวอร์ทดสอบ ให้ใช้พอร์ต 8080 และ bind ที่ 0.0.0.0
 
+## สภาพแวดล้อมที่ 2: คอม Windows ของผู้ใช้
+- โฟลเดอร์โปรเจค `D:\sciboom` (clone ผ่าน HTTPS: https://github.com/WirunSit/my-game.git), Node.js 24
+- มีการ์ดจอจริง เกมใช้ WebGL ได้ / เทสต์อัตโนมัติยังเปิดเบราว์เซอร์ด้วย `--disable-gpu` เหมือนเดิม
+- คำแนะนำเรื่อง Cloud Shell (home, nvm, Web Preview) ไม่ต้องใช้บนเครื่องนี้ เปิด http://localhost:8080 ได้เลย
+
 ## Git และ GitHub
 - โฟลเดอร์โปรเจค: ~/my-game
 - branch หลัก: main
@@ -44,9 +49,14 @@
 - แผนเกมทั้งหมดอยู่ที่ docs/GAME_DESIGN.md — อ่านก่อนเริ่มงานทุกครั้ง
 - พรอมต์สร้างภาพด้วย GPT อยู่ที่ docs/ART_PROMPTS.md ผู้ใช้จะอัปโหลดภาพเข้า art/raw/
 - เทคโนโลยี: Phaser 4 + TypeScript + Vite (โฟลเดอร์ client/), ใช้ npm workspaces
-  - shared/ = ตรรกะเกมที่ไม่มีภาพ (ฟิสิกส์, พื้น, อาวุธ) ใช้ร่วมกับเซิร์ฟเวอร์ PvP ในอนาคต — ห้าม import Phaser ในนี้
-  - tools/ = สคริปต์ตัด sprite sheet (`npm run art`) และทดสอบเล่นอัตโนมัติ (`npm run playtest -w tools`)
+  - shared/ = กติกาเกมที่ไม่มีภาพ (ฟิสิกส์, พื้น, อาวุธ, สกิล, `battle.ts` คำนวณการยิงทั้งหมด) ใช้ทั้งเกมและเซิร์ฟเวอร์ — ห้าม import Phaser ในนี้
+  - server/ = Node + `ws` (PvP ที่ `/ws`) + REST API (`/api`: บัญชีครู/นักเรียน, คลังคำถาม, สถิติ) + ฐานข้อมูล (SQLite ในเครื่อง / PostgreSQL บนเว็บ)
+  - client/teacher.html = หน้าครู (DOM ธรรมดา ไม่ใช้ Phaser)
+  - tools/ = ตัด sprite sheet (`npm run art`), ทดสอบเล่นอัตโนมัติ (`npm run playtest*:* -w tools`), จำลองสมดุล (`npx tsx tools/balance.ts`)
   - Cloud Shell ไม่มีการ์ดจอ: WebGL ช้ามาก เกมจึงเลือก Canvas อัตโนมัติเมื่อเจอ GPU แบบซอฟต์แวร์
-- รันเกมทดสอบ: `npm run dev` ที่ ~/my-game แล้วเปิด Web Preview พอร์ต 8080
-- คลังคำถามอยู่ที่ content/questions/*.json (AI ร่างไว้ `reviewed: false` รอครูตรวจ)
+- รันเกมทดสอบ: `npm run dev` (เปิดเกมพอร์ต 8080 + เซิร์ฟเวอร์ 8081 พร้อมกัน Vite ส่งต่อ `/ws` `/api` ให้) หน้าครูที่ `/teacher.html`
+- เทสต์: `npm test` (shared + server), `npm run typecheck`, playtest ต่าง ๆ ต้องเปิด `npm run dev` ไว้
+- นำขึ้นเว็บ: `docs/DEPLOY.md` (Render + Supabase) — ห้าม commit `DATABASE_URL` หรือรหัสผ่านใด ๆ
+- คลังคำถามต้นฉบับอยู่ที่ content/questions/*.json (ใช้ seed ฐานข้อมูลครั้งแรก หลังจากนั้นครูแก้ในหน้าครู)
+- ข้อความในเกมห้ามใช้ emoji (คอมโรงเรียนอาจไม่มีฟอนต์), ข้อความไทยใน Phaser ตัดบรรทัดด้วย `ui/thaiWrap.ts`
 - เมื่อเริ่มเซสชัน ให้อ่าน PROGRESS.md เพื่อดูว่าค้างอะไรอยู่
