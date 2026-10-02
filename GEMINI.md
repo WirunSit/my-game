@@ -10,8 +10,10 @@
 - ผู้ใช้ในเครื่อง: wirun_0558 | home: /home/wirun_0558
 - เฉพาะโฟลเดอร์ home (~) เท่านั้นที่ไม่หายเมื่อปิดเซสชัน (ประมาณ 5 GB)
   ทุกอย่างนอก home รวมถึงสิ่งที่ติดตั้งด้วย apt/sudo จะหายเมื่อเริ่มเซสชันใหม่
-- npm global ตั้ง prefix ไว้ที่ ~/.npm-global และเพิ่มใน PATH ผ่าน ~/.bashrc แล้ว
-  ให้ติดตั้งเครื่องมือด้วย `npm install -g` ได้ตามปกติ ไม่ต้องใช้ sudo
+- Node.js ใน Cloud Shell จัดการด้วย nvm — ห้ามตั้ง npm prefix (เช่น `npm config set prefix`)
+  เพราะจะชนกับ nvm ให้ใช้ `npm install -g` ตามค่าเริ่มต้นของ nvm ได้เลย ไม่ต้องใช้ sudo
+- Claude Code ติดตั้งแบบ native อยู่ที่ ~/.local/bin (ไม่ได้ติดตั้งผ่าน npm)
+- Gemini CLI มากับ Cloud Shell อยู่แล้ว ไม่ต้องติดตั้งเพิ่ม
 - Python package ให้ติดตั้งแบบ `pip install --user` หรือใช้ venv ภายในโปรเจค
 - มีโควต้าใช้งานจำกัดต่อสัปดาห์ และถ้าไม่ได้เข้าใช้นานประมาณ 120 วัน ไฟล์ใน home อาจถูกลบ
   ดังนั้นต้อง push ขึ้น GitHub สม่ำเสมอ
