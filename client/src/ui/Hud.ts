@@ -38,6 +38,7 @@ export class Hud {
   private readonly mapScale: number;
   private statusItems: Phaser.GameObjects.GameObject[] = [];
   private lastBanner?: Phaser.GameObjects.Text;
+  private countdownText?: Phaser.GameObjects.Text;
   /** Whether a fighter gets a dot on the mini-map (camouflage hides it from the other side) */
   showOnMap: (c: Combatant) => boolean = () => true;
 
@@ -227,5 +228,27 @@ export class Hud {
     this.scene.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 220, ease: 'Back.out' });
     this.scene.tweens.add({ targets: t, alpha: 0, y: t.y - 30, delay: 1000, duration: 400, onComplete: () => t.destroy() });
     this.lastBanner = t;
+  }
+
+  /** Big number in the middle of the screen for the last seconds of a turn (5, 4, 3, 2, 1) */
+  countdown(n: number) {
+    this.clearCountdown();
+    const t = this.scene.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 10, String(n), { ...textStyle(140, n <= 3 ? '#ff5544' : '#ffcc33'), strokeThickness: 12 })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.overlay)
+      .setScale(1.8)
+      .setAlpha(0);
+    // Slam in, hold, then fade before the next number
+    this.scene.tweens.add({ targets: t, alpha: 0.9, scale: 1, duration: 200, ease: 'Back.out' });
+    this.scene.tweens.add({ targets: t, alpha: 0, scale: 0.8, delay: 600, duration: 300, onComplete: () => t.destroy() });
+    this.countdownText = t;
+  }
+
+  clearCountdown() {
+    if (!this.countdownText?.active) return;
+    this.scene.tweens.killTweensOf(this.countdownText);
+    this.countdownText.destroy();
   }
 }

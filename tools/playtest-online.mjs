@@ -108,7 +108,7 @@ sa.forEach((f, i) => assert.ok(Math.abs(f.x - sb[i].x) <= 3, `same position for 
 assert.equal(await online(a, 's.them.hidden'), true, 'B stays camouflaged through A’s turn');
 
 // B leaves: A wins
-await b.mouse.click(790, 30); // "☰ ออก"
+await b.mouse.click(815, 30); // middle of "☰ ออก"
 await a.waitForFunction(() => window.game.scene.getScene('Online').phase === 'over', null, { timeout: 15_000 });
 await a.waitForTimeout(1200);
 await shot(a, '7-a-wins');

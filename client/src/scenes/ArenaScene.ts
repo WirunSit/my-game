@@ -65,7 +65,8 @@ import { loadSave } from '../save';
 
 const WALK_SPEED = 110; // px/s
 const AIM_SPEED = 40; // degrees/s while holding ↑/↓
-const CHARGE_SPEED = 65; // power/s while holding fire (0→100 in ~1.5 s)
+// power/s while holding fire (0→100 in ~2.2 s, like DDTank); at 100 the bar runs back down, and so on until you let go
+const CHARGE_SPEED = 45;
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
 /** A camouflaged fighter, as seen by its own player (the other side sees nothing at all) */
 const STEALTH_SELF_ALPHA = 0.22;
@@ -160,6 +161,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   private flightPrev: Vec | null = null;
   private stepTimer = 0;
   private lastTick = 0;
+  /** Power bar going up (1) or coming back down (-1) */
+  private chargeDir = 1;
   /** Bumped when the scene shuts down so an old match loop stops */
   protected matchToken = 0;
 
@@ -215,6 +218,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       if (this.phase !== 'aiming') return;
       this.phase = 'charging';
       this.power = 0;
+      this.chargeDir = 1;
       this.chargeHum = sfx.chargePower();
     };
     this.controls.onFireUp = () => {
@@ -366,6 +370,7 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** End the human's input: with a power to shoot, or null if the turn is lost */
   protected finishHuman(power: number | null) {
+    this.hud.clearCountdown();
     this.chargeHum?.stop();
     this.chargeHum = null;
     const resolve = this.resolveHuman;
@@ -911,14 +916,25 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.hud.setTimer(this.timeLeft);
     // Clock ticks in the last 5 seconds
     const sec = Math.ceil(this.timeLeft);
-    if (sec !== this.lastTick && sec <= 5 && sec > 0) sfx.tick(sec <= 3);
+    if (sec !== this.lastTick && sec <= 5 && sec > 0) {
+      sfx.tick(sec <= 3);
+      this.hud.countdown(sec);
+    }
     this.lastTick = sec;
 
     if (this.phase === 'charging') {
-      this.power = Math.min(100, this.power + CHARGE_SPEED * dt);
+      // Up to 100, back down to 0, up again… until released (or the time runs out)
+      this.power += this.chargeDir * CHARGE_SPEED * dt;
+      if (this.power >= 100) {
+        this.power = 200 - this.power;
+        this.chargeDir = -1;
+      } else if (this.power <= 0) {
+        this.power = -this.power;
+        this.chargeDir = 1;
+      }
       this.chargeHum?.set(this.power / 100);
       this.hud.setPower(this.power, f.lastPower);
-      if (this.power >= 100 || this.timeLeft <= 0) this.finishHuman(this.power);
+      if (this.timeLeft <= 0) this.finishHuman(this.power);
       return;
     }
 

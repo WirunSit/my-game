@@ -229,8 +229,12 @@ export class OnlineBattleScene extends ArenaScene {
       delay: 250,
       loop: true,
       callback: () => {
+        const before = Math.ceil(left);
         left -= 0.25;
         this.hud.setTimer(left);
+        // The same big 5-4-3-2-1 while watching the other player
+        const sec = Math.ceil(left);
+        if (sec !== before && sec <= 5 && sec > 0) this.hud.countdown(sec);
         if (left <= 0) this.countdown?.remove();
       },
     });

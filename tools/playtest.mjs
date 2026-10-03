@@ -3,6 +3,7 @@
 // Needs the dev server running first:  npm run dev   (in another terminal)
 // Usage: npm run playtest -w tools  [-- outDir]
 import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const URL = 'http://localhost:8080/';
@@ -64,7 +65,7 @@ await shot('5-player2-turn');
 
 // Player 2 fires a strong shot back
 await page.keyboard.down('Space');
-await wait(1150);
+await wait(1650);
 await page.keyboard.up('Space');
 // Wait for the shot to land (phase leaves 'flying')
 await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'flying', null, { timeout: 30000, polling: 100 });
@@ -72,6 +73,31 @@ await page.waitForFunction(() => window.game.scene.getScene('Battle').phase !== 
 await wait(150);
 await shot('6-player2-explosion');
 await page.waitForFunction(() => window.game.scene.getScene('Battle').turn === 2, null, { timeout: 30000, polling: 200 });
+await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'aiming', null, { timeout: 30000, polling: 100 });
+
+// Last 5 seconds: a big countdown number in the middle of the screen
+await battle(() => { window.game.scene.getScene('Battle').timeLeft = 5.5; });
+await page.waitForFunction(() => window.game.scene.getScene('Battle').hud.countdownText?.active, null, { timeout: 5000, polling: 50 });
+assert.equal(await battle(() => window.game.scene.getScene('Battle').hud.countdownText.text), '5');
+await wait(150);
+await shot('7-countdown');
+
+// Holding fire past 100: the bar runs back down instead of firing
+await battle(() => { window.game.scene.getScene('Battle').timeLeft = 20; });
+await page.keyboard.down('Space');
+const powers = [];
+for (let i = 0; i < 30; i++) {
+  powers.push(await battle(() => window.game.scene.getScene('Battle').power));
+  await wait(100);
+}
+assert.equal(await battle(() => window.game.scene.getScene('Battle').phase), 'charging', 'still charging after reaching 100');
+const top = Math.max(...powers);
+assert.ok(top > 90, `power reached ${top}`);
+assert.ok(powers.at(-1) < top - 10, `power came back down (${powers.map((p) => Math.round(p)).join(' ')})`);
+assert.ok(powers.indexOf(top) > 15, 'slower charging: about 2 s to the top');
+await shot('8-power-coming-back');
+await page.keyboard.up('Space');
+
 console.log('state:', await battle(() => {
   const s = window.game.scene.getScene('Battle');
   return s.combatants.map((f) => `${f.name} hp=${f.hp} alive=${f.alive}`).join(' | ');
