@@ -17,6 +17,7 @@
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client",
     "test": "npm test -w shared && npm test -w server",
     "art": "npm run slice -w tools",
-    "art:debug": "npm run slice -w tools -- --debug"
+    "art:debug": "npm run slice -w tools -- --debug",
+    "audio": "node tools/audio.mjs"
   }
 }

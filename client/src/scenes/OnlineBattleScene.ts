@@ -5,7 +5,7 @@ import { Fighter } from '../game/Fighter';
 import type { Net } from '../net/Net';
 import { updateSave } from '../save';
 import { showQuiz, type QuizResult } from '../ui/QuizPopup';
-import { sfx } from '../audio/Sound';
+import { sfx, type Ambience, type Track } from '../audio/Sound';
 import { ArenaScene } from './ArenaScene';
 
 type Start = Extract<ServerMessage, { t: 'start' }>;
@@ -191,6 +191,7 @@ export class OnlineBattleScene extends ArenaScene {
     }
     if (msg.armed.includes('ultimate')) {
       this.hud.banner('ไม้ตาย!', '#ffcc33');
+      sfx.ultimate();
       await this.wait(400);
     }
     for (let i = 0; i < msg.timelines.length; i++) {
@@ -276,6 +277,14 @@ export class OnlineBattleScene extends ArenaScene {
 
   // ArenaScene's own match loop isn't used online: the server runs the turns
   protected async takeTurn(_actor: Combatant) {}
+
+  protected musicTrack(): Track {
+    return 'pvp';
+  }
+
+  protected ambienceKind(): Ambience {
+    return 'arena';
+  }
 
   // ---- End -------------------------------------------------------------------------------
 

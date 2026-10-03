@@ -50,7 +50,7 @@ import {
   type Vec,
   type WeaponStats,
 } from '@sciboom/shared';
-import { sfx, startMusic } from '../audio/Sound';
+import { panFor, sfx, startAmbience, startMusic, stopAmbience, stopMusic, type Ambience, type Held, type Track } from '../audio/Sound';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import { drawArtBackground } from '../game/background';
 import type { Combatant } from '../game/Combatant';
@@ -154,6 +154,12 @@ export abstract class ArenaScene extends Phaser.Scene {
   private guideKey = '';
   private panning = false;
   private camTarget: Combatant | null = null;
+  /** Sounds that follow the game while they play */
+  private chargeHum: Held | null = null;
+  private flightSound: Held | null = null;
+  private flightPrev: Vec | null = null;
+  private stepTimer = 0;
+  private lastTick = 0;
   /** Bumped when the scene shuts down so an old match loop stops */
   protected matchToken = 0;
 
@@ -209,6 +215,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       if (this.phase !== 'aiming') return;
       this.phase = 'charging';
       this.power = 0;
+      this.chargeHum = sfx.chargePower();
     };
     this.controls.onFireUp = () => {
       if (this.phase === 'charging') this.finishHuman(this.power);
@@ -230,7 +237,29 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     back.on('pointerup', () => this.leave(menuScene));
     addSoundToggle(this, GAME_WIDTH / 2 + 245, 30, 32);
-    startMusic('battle');
+    startMusic(this.musicTrack());
+    const amb = this.ambienceKind();
+    if (amb) startAmbience(amb);
+    this.events.once('shutdown', () => {
+      stopAmbience();
+      this.chargeHum?.stop();
+      this.flightSound?.stop();
+    });
+  }
+
+  /** Hook: the song for this kind of match */
+  protected musicTrack(): Track {
+    return 'battle';
+  }
+
+  /** Hook: the sound of the place under the music */
+  protected ambienceKind(): Ambience | null {
+    return null;
+  }
+
+  /** Stereo position of a sound made at world x (left of the screen = left speaker) */
+  protected panAt(x: number): number {
+    return panFor(x - this.cameras.main.scrollX, GAME_WIDTH);
   }
 
   /** Hook: leaving the match from the ☰ button (online games tell the server first) */
@@ -275,6 +304,9 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   protected endMatch(winner: Combatant | null) {
     this.phase = 'over';
+    // Quiet down so the win/lose tune stands out
+    stopMusic();
+    stopAmbience();
     this.combatants.forEach((c) => c.setActive(false));
     this.onMatchEnd(winner);
   }
@@ -300,6 +332,7 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected async showBurn(actor: Combatant, dmg: number) {
     this.focusOn(actor);
     this.hud.banner(`${actor.name} โดนไฟไหม้!`, '#ff8844');
+    sfx.burn(this.panAt(actor.x));
     await this.wait(500);
     actor.takeDamage(dmg);
     this.floatText(actor.x, actor.y - actor.height - 30, `-${dmg}`, '#ff8844');
@@ -333,6 +366,8 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** End the human's input: with a power to shoot, or null if the turn is lost */
   protected finishHuman(power: number | null) {
+    this.chargeHum?.stop();
+    this.chargeHum = null;
     const resolve = this.resolveHuman;
     this.resolveHuman = null;
     this.human?.setActive(false);
@@ -431,19 +466,21 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (!f || !sk || this.phase !== 'aiming') return;
     if (sk.armed.includes(slot)) {
       unpickSkill(sk, slot);
+      sfx.unpick();
       this.refreshStamina();
       this.refreshSkills();
       return;
     }
     const blocker = skillBlocker(sk, slot, f.hp >= f.maxHp);
     if (blocker !== null) {
+      sfx.deny();
       this.hud.banner(BLOCKER_TEXT[blocker], '#cccccc');
       return;
     }
     if (isInstantSkill(slot)) this.useInstantSkill(f, slot);
     else {
       pickSkill(sk, slot);
-      sfx.skill();
+      sfx.pick();
     }
     this.refreshStamina();
     this.refreshSkills();
@@ -462,12 +499,12 @@ export abstract class ArenaScene extends Phaser.Scene {
       this.floatText(f.x, f.y - f.height - 30, `+${HEAL_AMOUNT}`, '#7dff8a');
       this.hud.refreshHp();
     } else if (slot === 'shield') {
-      sfx.skill();
+      sfx.shield();
       this.shielded.add(f);
       this.syncShield(f);
       this.hud.banner(`${f === this.human ? '' : `${f.name} `}ใช้โล่!`, '#7dd3ff');
     } else {
-      sfx.skill();
+      sfx.stealth();
       f.setStealth(true, this.viewerOwns(f) ? STEALTH_SELF_ALPHA : 0);
       this.hud.banner(`${this.viewerOwns(f) ? '' : `${f.name} `}พรางตัว!`, '#bfe8ff');
     }
@@ -486,6 +523,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (sk) this.addGauge(f, GAUGE_SHOT);
     if (loadout.mode === 'ultimate') {
       this.hud.banner('ไม้ตาย!', '#ffcc33');
+      sfx.ultimate();
       await this.wait(400);
     }
     const outcomes: ShotOutcome[] = [];
@@ -544,8 +582,12 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.phase = 'flying';
     this.camTarget = null;
     this.cameras.main.stopFollow();
-    if (timeline.flights[0]?.look === 'plane') sfx.skill();
-    else sfx.fire();
+    const pan = this.panAt(shooter.x);
+    if (timeline.flights[0]?.look === 'plane') sfx.plane(pan);
+    else sfx.fire(Math.max(0.8, Math.min(1.6, shooter.weapon.radius / 50)), pan);
+    this.flightSound?.stop();
+    this.flightSound = sfx.flight();
+    this.flightPrev = null;
     const sprites = timeline.flights.map((fl) => {
       const plane = this.textures.exists('fx/proj_paper_plane') ? 'fx/proj_paper_plane' : 'fx/paper_plane';
       const key = fl.look === 'plane' ? plane : fl.look === 'bolt' ? 'fx/proj_lightning' : `fx/${projectile}`;
@@ -582,6 +624,13 @@ export abstract class ArenaScene extends Phaser.Scene {
     // Camera and sky marker follow the first projectile still in the air
     const live = lead as Phaser.GameObjects.Image | null;
     this.skyMarker.setVisible(!!live && live.y < 0);
+    // The air rushing past gets louder and higher the faster the shell goes
+    if (live) {
+      if (this.flightPrev) this.flightSound?.set(Math.hypot(live.x - this.flightPrev.x, live.y - this.flightPrev.y) / (dt * 1400));
+      this.flightPrev = { x: live.x, y: live.y };
+    } else {
+      this.flightSound?.stop();
+    }
     if (live) {
       const cam = this.cameras.main;
       cam.scrollX += (live.x - GAME_WIDTH / 2 - cam.scrollX) * 0.15;
@@ -589,6 +638,8 @@ export abstract class ArenaScene extends Phaser.Scene {
     }
     if (step >= pb.timeline.end && pb.next >= events.length) {
       pb.sprites.forEach((s) => s.destroy());
+      this.flightSound?.stop();
+      this.flightSound = null;
       this.playback = null;
       this.skyMarker.setVisible(false);
       this.phase = 'idle';
@@ -609,7 +660,7 @@ export abstract class ArenaScene extends Phaser.Scene {
         break;
       case 'teleport':
         (this.byId(e.id) as Fighter).teleportTo(e.x, e.y);
-        sfx.skill();
+        sfx.teleport(this.panAt(e.x));
         this.hud.banner('บินไปแล้ว!', '#bfe8ff');
         break;
       case 'miss':
@@ -630,8 +681,10 @@ export abstract class ArenaScene extends Phaser.Scene {
     const boom = this.add.sprite(at.x, at.y, 'fx/explosion_0').setDepth(DEPTH.fx);
     boom.setScale((radius * 2.8) / 256);
     boom.play('explosion');
-    sfx.explode(radius);
-    if (hits.some((h) => h.id !== pb.shooter.id)) sfx.hit();
+    const pan = this.panAt(at.x);
+    sfx.explode(radius, pan);
+    const others = hits.filter((h) => h.id !== pb.shooter.id);
+    if (others.length > 0) sfx.hit(others.some((h) => h.direct), pan);
     this.cameras.main.shake(220, 0.008);
     this.terrainView.carve(at.x, at.y, radius);
     this.hud.drawMinimap(this.terrain);
@@ -652,10 +705,12 @@ export abstract class ArenaScene extends Phaser.Scene {
       // A hit gives a camouflaged fighter away
       if (c !== pb.shooter && c.hidden && h.damage > 0) {
         (c as Fighter).setStealth(false);
+        sfx.reveal();
         this.floatText(c.x, c.y - c.height - 110, 'เจอตัวแล้ว!', '#bfe8ff');
       }
       if (h.burn) {
         this.burns.set(c, BURN_TURNS);
+        sfx.burn(pan);
         this.floatText(c.x, c.y - c.height - 80, 'ติดไฟ!', '#ff8844');
       }
       if (h.pushTo !== undefined) this.tweens.add({ targets: c, x: h.pushTo, duration: 350, ease: 'Cubic.out', onUpdate: () => c.sync() });
@@ -854,9 +909,14 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (!f) return;
     this.timeLeft -= dt;
     this.hud.setTimer(this.timeLeft);
+    // Clock ticks in the last 5 seconds
+    const sec = Math.ceil(this.timeLeft);
+    if (sec !== this.lastTick && sec <= 5 && sec > 0) sfx.tick(sec <= 3);
+    this.lastTick = sec;
 
     if (this.phase === 'charging') {
       this.power = Math.min(100, this.power + CHARGE_SPEED * dt);
+      this.chargeHum?.set(this.power / 100);
       this.hud.setPower(this.power, f.lastPower);
       if (this.power >= 100 || this.timeLeft <= 0) this.finishHuman(this.power);
       return;
@@ -875,9 +935,17 @@ export abstract class ArenaScene extends Phaser.Scene {
       const allowance = sk ? walkAllowance(sk) : Infinity;
       if (allowance > 0 && !f.falling) {
         const step = Math.min(WALK_SPEED * dt, allowance);
-        if (f.walk(move, step, this.terrain) && sk) {
-          spendWalk(sk, step);
-          this.refreshStamina();
+        if (f.walk(move, step, this.terrain)) {
+          // A footstep every so often
+          this.stepTimer -= dt;
+          if (this.stepTimer <= 0) {
+            sfx.step();
+            this.stepTimer = 0.28;
+          }
+          if (sk) {
+            spendWalk(sk, step);
+            this.refreshStamina();
+          }
         }
         moved = true;
       } else if (f.facing !== move) {

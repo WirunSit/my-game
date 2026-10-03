@@ -42,7 +42,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   create() {
-    startMusic('menu');
+    startMusic('map');
     const save = loadSave();
     const w = WORLDS[this.world - 1];
     drawArtBackground(this, w.background, GAME_WIDTH, 0);

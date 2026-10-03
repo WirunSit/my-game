@@ -23,6 +23,7 @@ const COLORS = { normal: 0x3a8dde, right: 0x2fbf5b, wrong: 0xe5484d, dim: 0x8a8f
  */
 export function showQuiz(scene: Phaser.Scene, item: QuizItem, opts: { title: string; seconds?: number }): Promise<QuizResult> {
   const seconds = opts.seconds ?? 20;
+  sfx.quiz();
   const cx = GAME_WIDTH / 2;
   const top = (GAME_HEIGHT - PANEL_H) / 2;
   const objects: Phaser.GameObjects.GameObject[] = [];

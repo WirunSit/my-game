@@ -20,7 +20,7 @@ import {
   type Hit,
   type Vec,
 } from '@sciboom/shared';
-import { sfx } from '../audio/Sound';
+import { sfx, type Ambience, type Track } from '../audio/Sound';
 import { DEPTH, FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
 import { Crate } from '../game/Crate';
@@ -123,6 +123,15 @@ export class StageScene extends ArenaScene {
   }
 
   // ---- Turns ----------------------------------------------------------------
+
+  protected musicTrack(): Track {
+    return this.stage.isBoss ? 'boss' : 'battle';
+  }
+
+  /** Each world sounds like its place: lab, cells, forest, volcano, storm */
+  protected ambienceKind(): Ambience {
+    return (['lab', 'cell', 'forest', 'lava', 'storm'] as const)[this.stage.world - 1] ?? 'lab';
+  }
 
   protected async takeTurn(actor: Combatant) {
     if (actor === this.player) await this.playerTurn();
@@ -241,6 +250,7 @@ export class StageScene extends ArenaScene {
       e.grow(1.12);
     }
     this.hud.refreshHp();
+    sfx.swell();
     this.hud.banner(`${e.name} ดูดน้ำเข้าเซลล์ (ออสโมซิส)!`, '#7dd3ff');
     if (heal > 0) this.floatText(e.x, e.y - e.height - 30, `+${heal}`, '#7dff8a');
     await this.wait(1400);
@@ -285,6 +295,7 @@ export class StageScene extends ArenaScene {
       boom.play('explosion');
     }
     this.cameras.main.shake(200, 0.006);
+    sfx.roots();
     this.terrainView.carve(mark.x, mark.y, 40);
     this.hud.drawMinimap(this.terrain);
     if (Math.abs(this.player.x - mark.x) < 70) {
@@ -323,6 +334,7 @@ export class StageScene extends ArenaScene {
     const top = Math.max(WORLD_HEIGHT - 160, this.lavaY - 15);
     if (top === this.lavaY) return;
     this.drawLava(top);
+    sfx.lava();
     this.hud.banner('ลาวาสูงขึ้น!', '#ff8844');
   }
 
@@ -339,6 +351,8 @@ export class StageScene extends ArenaScene {
   /** Stormlord: much stronger wind (beginner help only softens it a little) */
   protected newWind() {
     if (this.stage.gimmick !== 'storm') return super.newWind();
+    sfx.wind();
+    if (Math.random() < 0.4) sfx.thunder();
     const soften = Math.max(0.7, windFactor(this.assistLevel));
     this.setWind(Math.round(this.rng.range(-MAX_WIND, MAX_WIND) * soften * 1.4));
   }
@@ -411,6 +425,7 @@ export class StageScene extends ArenaScene {
       const ok = await this.ask('กล่องคำถาม! ตอบถูกรับไอเท็ม');
       if (ok) {
         const item = (['heal', 'shield', 'double', 'power'] as Item[])[this.rng.int(0, 3)];
+        sfx.item();
         this.grant(item);
         this.hud.banner(ITEMS[item].label, '#7dff8a');
         await this.wait(1200);
@@ -464,6 +479,7 @@ export class StageScene extends ArenaScene {
     for (const c of this.crates) {
       if (c.opened || Math.hypot(c.x - at.x, c.centerY - at.y) > radius + 30) continue;
       c.open();
+      sfx.crate();
       if (shooter === this.player) this.pendingCrates++;
       else this.hud.banner('กล่องคำถามแตก!', '#cccccc');
     }

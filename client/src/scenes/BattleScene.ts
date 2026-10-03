@@ -2,7 +2,7 @@ import { WORLD_HEIGHT, WORLD_WIDTH, baseWeaponStats } from '@sciboom/shared';
 import type { Combatant } from '../game/Combatant';
 import { Fighter, plainLook } from '../game/Fighter';
 import { loadSave } from '../save';
-import { sfx } from '../audio/Sound';
+import { sfx, type Ambience, type Track } from '../audio/Sound';
 import { ArenaScene } from './ArenaScene';
 
 /** Two players taking turns on one device. */
@@ -30,6 +30,14 @@ export class BattleScene extends ArenaScene {
     // Same skills for both players; specials are open to everyone so it stays fair
     for (const c of this.combatants) this.enableSkills(c as Fighter, true);
     this.runMatch();
+  }
+
+  protected musicTrack(): Track {
+    return 'pvp';
+  }
+
+  protected ambienceKind(): Ambience {
+    return 'arena';
   }
 
   protected async takeTurn(actor: Combatant) {
