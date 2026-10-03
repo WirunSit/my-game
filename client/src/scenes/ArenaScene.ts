@@ -4,36 +4,45 @@ import {
   GAUGE_HIT,
   GAUGE_HURT,
   GAUGE_MAX,
+  GAUGE_SHOT,
   HEAL_AMOUNT,
   ITEM_SKILLS,
   MAX_WIND,
   Rng,
+  SHIELD_FACTOR,
   SKILL_SLOTS,
   SPECIAL_KINDS,
+  STAMINA_MAX,
   STEP,
   TURN_SECONDS,
   Terrain,
-  WALK_PER_TURN,
   WORLD_HEIGHT,
   WORLD_WIDTH,
   addGauge,
   aimGuideLength,
   flightOptions,
+  fireSkills,
   fly,
   isInstantSkill,
   launchState,
+  loadoutOf,
   newSkillState,
   pathPrefix,
+  pickSkill,
   resolveShot,
-  shotModeFor,
   skillBlocker,
-  spendSkill,
+  skillCost,
+  spendWalk,
   startSkillTurn,
+  unpickSkill,
+  walkAllowance,
   tickBurn,
   weaponSpecial,
   windFactor,
   type Hit,
+  type InstantSkill,
   type ShotMode,
+  type SkillBlocker,
   type ShotTimeline,
   type SkillSlot,
   type SkillState,
@@ -58,6 +67,18 @@ const WALK_SPEED = 110; // px/s
 const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 const CHARGE_SPEED = 65; // power/s while holding fire (0→100 in ~1.5 s)
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
+
+/** Why a skill button did nothing */
+const BLOCKER_TEXT: Record<SkillBlocker, string> = {
+  stamina: 'สตามินาไม่พอ',
+  clash: 'ใช้คู่กับสกิลที่เลือกไว้ไม่ได้',
+  used: 'ใช้สกิลนี้ไปแล้วในตานี้',
+  empty: 'ใช้ครบจำนวนแล้วในเกมนี้',
+  full: 'พลังชีวิตเต็มอยู่แล้ว',
+  gauge: 'เกจไม้ตายยังไม่เต็ม',
+  cooldown: 'ท่าพิเศษกำลังพัก',
+  locked: 'ท่าพิเศษใช้ได้กับอาวุธ ★3 ขึ้นไป',
+};
 
 export type Phase = 'idle' | 'aiming' | 'charging' | 'flying' | 'quiz' | 'over';
 
@@ -111,13 +132,17 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected skills = new Map<Combatant, SkillState>();
   /** Turns of burning left (burn special) */
   protected burns = new Map<Combatant, number>();
+  /** Shield skill: these take less damage until their next turn */
+  protected shielded = new Set<Combatant>();
+  /** Gauge already given this turn (it is given once per turn, however many shells land) */
+  private gaugeHitGiven = false;
+  private gaugeHurtGiven = new Set<Combatant>();
   /** The fighter whose input is being read right now */
   protected human: Fighter | null = null;
 
   /** Index in `combatants` of whoever acts next (combatants may be added mid-match, e.g. a boss splitting) */
   private cursor = 0;
   private timeLeft = 0;
-  private walkLeft = 0;
   private power = 0;
   private resolveHuman: ((power: number | null) => void) | null = null;
   private playback: Playback | null = null;
@@ -256,7 +281,9 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** Things that happen before anyone acts: camouflage wears off, fire burns, cooldowns tick */
   protected async startOfTurn(actor: Combatant) {
+    this.newGaugeTurn();
     if (actor.hidden) (actor as Fighter).setStealth(false);
+    this.endShield(actor);
     const unit = this.unitOf(actor);
     const dmg = tickBurn(unit);
     this.burns.set(actor, unit.burn);
@@ -285,14 +312,14 @@ export abstract class ArenaScene extends Phaser.Scene {
     }
     this.phase = 'aiming';
     this.timeLeft = seconds;
-    this.walkLeft = WALK_PER_TURN;
     this.power = 0;
     f.setActive(true);
     sfx.turn();
     this.hud.showTimer(true);
     this.hud.setAngle(f.angle);
     this.hud.setPower(0, f.lastPower);
-    this.hud.setStamina(1);
+    this.staminaShown = -1;
+    this.refreshStamina();
     this.focusOn(f);
     return new Promise((resolve) => (this.resolveHuman = resolve));
   }
@@ -332,31 +359,37 @@ export abstract class ArenaScene extends Phaser.Scene {
   }
 
   private slotState(sk: SkillState, slot: SkillSlot, f: Fighter): SlotState {
-    const armed = sk.armed === slot;
+    const armed = sk.armed.includes(slot);
     const blocker = skillBlocker(sk, slot, f.hp >= f.maxHp);
     const enabled = blocker === null;
+    const cost = skillCost(slot) || undefined;
     if (slot === 'special') {
       if (blocker === 'locked') return { enabled, armed, note: '★3' };
-      if (blocker === 'cooldown') return { enabled, armed, note: `อีก ${sk.specialCooldown}` };
-      return { enabled, armed };
+      if (blocker === 'cooldown') return { enabled, armed, cost, note: `อีก ${sk.specialCooldown}` };
+      return { enabled, armed, cost };
     }
     if (slot === 'ultimate') return { enabled, armed, fill: sk.gauge / GAUGE_MAX };
-    return { enabled, armed, count: sk.uses[slot] };
+    return { enabled, armed, cost, count: sk.uses[slot] };
   }
 
   private skillHint(sk: SkillState, f: Fighter): string {
-    switch (sk.armed) {
-      case null:
-        return '';
-      case 'special': {
-        const sp = weaponSpecial(f.weapon.id);
-        return `ท่าพิเศษ "${sp.name}": ${SPECIAL_KINDS[sp.kind]}`;
-      }
-      case 'ultimate':
-        return 'ไม้ตาย: ลูกใหญ่ ดาเมจ x2 ไม่โดนลม และเห็นเส้นนำทางเต็มเส้น';
-      default:
-        return `${ITEM_SKILLS[sk.armed].name}: ${ITEM_SKILLS[sk.armed].desc}`;
+    if (sk.armed.length === 0) return '';
+    if (sk.armed.includes('ultimate')) {
+      return sk.armed.includes('power') ? 'ไม้ตาย + เพิ่มพลัง: ลูกใหญ่ ดาเมจ x2.6 ไม่โดนลม' : 'ไม้ตาย: ลูกใหญ่ ดาเมจ x2 ไม่โดนลม และเห็นเส้นนำทางเต็มเส้น';
     }
+    if (sk.armed.includes('plane')) return `${ITEM_SKILLS.plane.name}: ${ITEM_SKILLS.plane.desc}`;
+    const { rounds, damageMul } = loadoutOf(sk.armed);
+    const parts: string[] = [];
+    if (sk.armed.includes('special')) {
+      const sp = weaponSpecial(f.weapon.id);
+      parts.push(`ท่าพิเศษ "${sp.name}" (${SPECIAL_KINDS[sp.kind]})`);
+    }
+    const shells = sk.armed.includes('triple') ? 3 : 1;
+    if (rounds > 1) parts.push(`ยิง ${rounds} รอบ`);
+    if (shells > 1) parts.push(rounds > 1 ? 'รอบละ 3 ลูก' : 'กระจาย 3 ลูก');
+    const each = Math.round(damageMul * (shells > 1 ? 0.5 : 1) * 100);
+    parts.push(shells > 1 || rounds > 1 ? `ดาเมจลูกละ ${each}%` : `ดาเมจ ${each}%`);
+    return parts.join(' · ');
   }
 
   protected refreshSkills() {
@@ -369,42 +402,65 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.guideKey = '';
   }
 
-  /** Tap on a skill: instant ones happen now; shot skills are armed (tap again to cancel) */
+  /** Stamina bar of whoever is playing; the skill buttons follow what it can still pay for */
+  protected refreshStamina() {
+    const f = this.human;
+    const sk = f && this.skills.get(f);
+    const left = sk ? sk.stamina : STAMINA_MAX;
+    this.hud.setStamina(left / STAMINA_MAX, left);
+    // Walking slowly drains it: redraw the buttons only when the whole number changes
+    const shown = Math.floor(left);
+    if (shown !== this.staminaShown) {
+      this.staminaShown = shown;
+      this.refreshSkills();
+    }
+  }
+  private staminaShown = -1;
+
+  /** Tap on a skill: instant ones happen now; shot skills are picked (tap again to put back) */
   private pickSkill(slot: SkillSlot) {
     const f = this.human;
     const sk = f && this.skills.get(f);
     if (!f || !sk || this.phase !== 'aiming') return;
-    if (sk.armed === slot) {
-      sk.armed = null;
+    if (sk.armed.includes(slot)) {
+      unpickSkill(sk, slot);
+      this.refreshStamina();
       this.refreshSkills();
       return;
     }
-    if (skillBlocker(sk, slot, f.hp >= f.maxHp) !== null) {
-      if (sk.usedThisTurn) this.hud.banner('ใช้สกิลได้ตาละ 1 ครั้ง', '#cccccc');
+    const blocker = skillBlocker(sk, slot, f.hp >= f.maxHp);
+    if (blocker !== null) {
+      this.hud.banner(BLOCKER_TEXT[blocker], '#cccccc');
       return;
     }
     if (isInstantSkill(slot)) this.useInstantSkill(f, slot);
     else {
-      sk.armed = slot;
+      pickSkill(sk, slot);
       sfx.skill();
     }
+    this.refreshStamina();
     this.refreshSkills();
   }
 
-  /** Heal or camouflage right now (online games ask the server instead) */
-  protected useInstantSkill(f: Fighter, slot: 'heal' | 'stealth') {
-    spendSkill(this.skills.get(f)!, slot);
+  /** Heal, shield or camouflage right now (online games also tell the server) */
+  protected useInstantSkill(f: Fighter, slot: InstantSkill) {
+    pickSkill(this.skills.get(f)!, slot);
     this.showInstantSkill(f, slot);
   }
 
-  protected showInstantSkill(f: Fighter, slot: 'heal' | 'stealth') {
-    if (slot === 'heal') sfx.heal();
-    else sfx.skill();
+  protected showInstantSkill(f: Fighter, slot: InstantSkill) {
     if (slot === 'heal') {
+      sfx.heal();
       f.heal(HEAL_AMOUNT);
       this.floatText(f.x, f.y - f.height - 30, `+${HEAL_AMOUNT}`, '#7dff8a');
       this.hud.refreshHp();
+    } else if (slot === 'shield') {
+      sfx.skill();
+      this.shielded.add(f);
+      this.syncShield(f);
+      this.hud.banner(`${f === this.human ? '' : `${f.name} `}ใช้โล่!`, '#7dd3ff');
     } else {
+      sfx.skill();
       f.setStealth(true);
       this.hud.banner('พรางตัว!', '#bfe8ff');
     }
@@ -412,28 +468,29 @@ export abstract class ArenaScene extends Phaser.Scene {
   }
 
   /**
-   * A whole human turn with skills: walk/aim/charge, then fire using whatever
-   * skill was armed (uses are only spent if the shot is actually fired).
+   * A whole human turn with skills: walk/aim/charge, then fire using the shot
+   * skills picked (+1 and +2 fire more rounds with the same aim).
    */
   protected async humanShot(f: Fighter, opts: ShotOptions = {}): Promise<ShotOutcome[]> {
     const power = await this.humanTurn(f);
     if (power === null) return [];
     const sk = this.skills.get(f);
-    const armed = sk?.armed ?? null;
-    if (sk && armed) spendSkill(sk, armed);
-    if (armed === 'double') {
-      const first = await this.shoot(f, power, opts);
-      if (!this.combatants.some((c) => c !== f && c.alive)) return [first];
-      this.hud.banner('นัดที่สอง!', '#ffdd33');
-      await this.wait(500);
-      return [first, await this.shoot(f, power, { ...opts, damageMul: 1 })];
-    }
-    const mode = shotModeFor(armed);
-    if (mode === 'ultimate') {
+    const loadout = sk ? fireSkills(sk) : loadoutOf([]);
+    if (sk) this.addGauge(f, GAUGE_SHOT);
+    if (loadout.mode === 'ultimate') {
       this.hud.banner('ไม้ตาย!', '#ffcc33');
       await this.wait(400);
     }
-    return [await this.shoot(f, power, { ...opts, mode })];
+    const outcomes: ShotOutcome[] = [];
+    for (let k = 0; k < loadout.rounds; k++) {
+      if (k > 0) {
+        if (!f.alive || !this.combatants.some((c) => c !== f && c.alive)) break;
+        this.hud.banner(`รอบที่ ${k + 1}!`, '#ffdd33');
+        await this.wait(450);
+      }
+      outcomes.push(await this.shoot(f, power, { ...opts, mode: loadout.mode, damageMul: (opts.damageMul ?? 1) * loadout.damageMul }));
+    }
+    return outcomes;
   }
 
   // ---- Shooting -------------------------------------------------------------
@@ -579,8 +636,11 @@ export abstract class ArenaScene extends Phaser.Scene {
       pb.outcome.hits.push({ target: c, damage: h.damage });
       this.floatText(c.x, c.y - c.height - 30, `-${h.damage}`, h.direct ? '#ffdd33' : '#ff5544');
       if (c !== pb.shooter) {
-        this.addGauge(pb.shooter, GAUGE_HIT);
-        this.addGauge(c, GAUGE_HURT);
+        // Once per turn each, however many shells land
+        if (!this.gaugeHitGiven) this.addGauge(pb.shooter, GAUGE_HIT);
+        this.gaugeHitGiven = true;
+        if (!this.gaugeHurtGiven.has(c)) this.addGauge(c, GAUGE_HURT);
+        this.gaugeHurtGiven.add(c);
       }
       if (h.burn) {
         this.burns.set(c, BURN_TURNS);
@@ -595,8 +655,29 @@ export abstract class ArenaScene extends Phaser.Scene {
   }
 
   /** Hook: change damage before it lands (e.g. shields). Called while the shot is worked out. */
-  protected modifyDamage(_target: Combatant, damage: number): number {
-    return damage;
+  protected modifyDamage(target: Combatant, damage: number): number {
+    return this.shielded.has(target) ? Math.round(damage * SHIELD_FACTOR) : damage;
+  }
+
+  /** A new turn: the once-per-turn gauge gains can be earned again */
+  protected newGaugeTurn() {
+    this.gaugeHitGiven = false;
+    this.gaugeHurtGiven.clear();
+  }
+
+  /** Whether to draw a shield bubble around a combatant (stages add their crate shield) */
+  protected shieldShown(c: Combatant): boolean {
+    return this.shielded.has(c);
+  }
+
+  protected syncShield(c: Combatant) {
+    (c as Fighter).setShieldVisible?.(this.shieldShown(c));
+  }
+
+  /** The shield skill lasts until its owner's next turn */
+  protected endShield(c: Combatant) {
+    if (!this.shielded.delete(c)) return;
+    this.syncShield(c);
   }
 
   /** Hook: a hit is shown on screen */
@@ -759,10 +840,14 @@ export abstract class ArenaScene extends Phaser.Scene {
     let moved = false;
     const move = this.controls.moveDir;
     if (move !== 0) {
-      if (this.walkLeft > 0 && !f.falling) {
-        const step = Math.min(WALK_SPEED * dt, this.walkLeft);
-        if (f.walk(move, step, this.terrain)) this.walkLeft -= step;
-        this.hud.setStamina(this.walkLeft / WALK_PER_TURN);
+      const sk = this.skills.get(f);
+      const allowance = sk ? walkAllowance(sk) : Infinity;
+      if (allowance > 0 && !f.falling) {
+        const step = Math.min(WALK_SPEED * dt, allowance);
+        if (f.walk(move, step, this.terrain) && sk) {
+          spendWalk(sk, step);
+          this.refreshStamina();
+        }
         moved = true;
       } else if (f.facing !== move) {
         f.facing = move; // can always turn around
@@ -795,7 +880,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.guideKey = key;
 
     // Armed skills change the flight (no wind, rocket, paper plane...); the Ultimate shows the whole path
-    const mode = shotModeFor(this.skills.get(f)?.armed ?? null);
+    const mode = loadoutOf(this.skills.get(f)?.armed ?? []).mode;
     const special = mode === 'special' ? weaponSpecial(f.weapon.id).kind : null;
     const input = { x: m.x, y: m.y, angleDeg: f.angle, facing: f.facing, power, wind: this.wind };
     const shot = fly(launchState(input), flightOptions(mode, special, this.wind), this.terrain, [], f.id);

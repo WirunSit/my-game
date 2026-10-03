@@ -1,10 +1,11 @@
 // Balance check: simulate many fights of a "typical student" against every
 // stage with the real shared rules, and print win rates.
-// Usage (from the project folder): npx tsx tools/balance.ts [matches per stage]
+// Usage (from the project folder): npx tsx tools/balance.ts [matches per stage] [--skills]
 //
 // The student: aims like a beginner using the guide (gets better after each
-// miss, like real players), answers 65% of questions right, uses no skills
-// or items (so real players, who do, win more often than this).
+// miss, like real players), answers 65% of questions right, uses no items.
+// Without --skills they use no skills either; with --skills they fire "+1 with
+// +2" (four rounds, same aim) every turn, the usual stamina choice.
 import {
   BODY_OFFSET_Y,
   ENEMY_AIM,
@@ -18,13 +19,16 @@ import {
   planShot,
   resolveShot,
   weaponStats,
+  loadoutOf,
   windFactor,
   type Unit,
   type WeaponStats,
 } from '../shared/src/index';
 import { STAGES, type StageConfig } from '../client/src/game/stages';
 
-const MATCHES = Number(process.argv[2] ?? 60);
+const MATCHES = Number(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 60);
+const SKILLS = process.argv.includes('--skills');
+const COMBO = SKILLS ? loadoutOf(['plus1', 'plus2']) : loadoutOf([]);
 /** Per-stage totals for the report: shots fired, shots that hit, damage dealt */
 const tally = { p: { shots: 0, hits: 0, dmg: 0 }, e: { shots: 0, hits: 0, dmg: 0 } };
 const CORRECT_RATE = 0.65;
@@ -53,12 +57,15 @@ function fight(stage: StageConfig, seed: number): { won: boolean; turns: number 
   let bonus = 1;
   let split: Unit | null = null;
 
-  const shoot = (from: Unit, muzzle: { x: number; y: number }, facing: 1 | -1, target: Unit, skill: number, w: WeaponStats, wind: number, mul = 1) => {
+  const shoot = (from: Unit, muzzle: { x: number; y: number }, facing: 1 | -1, target: Unit, skill: number, w: WeaponStats, wind: number, mul = 1, rounds = 1) => {
     const plan = planShot(muzzle, facing, { id: target.id, x: target.x, y: target.y, radius: target.radius, offsetY: target.offsetY }, wind, terrain, units.filter((u) => u.alive), from.id, skill, rng);
-    const r = resolveShot(terrain, units, { shooterId: from.id, input: { ...muzzle, angleDeg: plan.angle, facing, power: plan.power, wind }, mode: 'normal', special: null, damage: w.damage, radius: w.radius, damageMul: mul });
-    terrain = r.terrain;
+    let dmg = 0;
+    for (let k = 0; k < rounds && target.alive; k++) {
+      const r = resolveShot(terrain, units, { shooterId: from.id, input: { ...muzzle, angleDeg: plan.angle, facing, power: plan.power, wind }, mode: 'normal', special: null, damage: w.damage, radius: w.radius, damageMul: mul });
+      terrain = r.terrain;
+      dmg += r.events.flatMap((ev) => (ev.kind === 'explode' ? ev.hits : [])).filter((h) => h.id === target.id).reduce((a, h) => a + h.damage, 0);
+    }
     const t = from.id === 'p' ? tally.p : tally.e;
-    const dmg = r.events.flatMap((ev) => (ev.kind === 'explode' ? ev.hits : [])).filter((h) => h.id === target.id).reduce((a, h) => a + h.damage, 0);
     t.shots++;
     t.dmg += dmg;
     if (dmg > 0) t.hits++;
@@ -73,11 +80,11 @@ function fight(stage: StageConfig, seed: number): { won: boolean; turns: number 
     // Student
     if (stage.gimmick === 'lava' && turn > 6 && rng.next() < 0.25) player.hp -= 80;
     const target = split?.alive && !enemy.alive ? split : enemy;
-    const hit = shoot(player, fighterMuzzle(player.x, player.y, 1, 45), 1, target, playerSkill, weapon, wind(), bonus);
+    const hit = shoot(player, fighterMuzzle(player.x, player.y, 1, 45), 1, target, playerSkill, weapon, wind(), bonus * COMBO.damageMul, COMBO.rounds);
     bonus = 1;
     playerSkill = hit ? playerSkill : Math.min(0.85, playerSkill + 0.1);
     if (stage.gimmick === 'split' && !split && enemy.alive && enemy.hp <= enemy.maxHp / 2) {
-      split = { id: 's', x: enemy.x - 230, y: terrain.groundBelow(enemy.x - 230, 0) ?? enemy.y, hp: 500, maxHp: 500, alive: true, radius: 45, offsetY: 61, burn: 0 };
+      split = { id: 's', x: enemy.x - 230, y: terrain.groundBelow(enemy.x - 230, 0) ?? enemy.y, hp: 700, maxHp: 700, alive: true, radius: 45, offsetY: 61, burn: 0 };
       units.push(split);
     }
     if (!enemy.alive && !split?.alive) return { won: true, turns: turn + 1 };
@@ -115,7 +122,7 @@ function fight(stage: StageConfig, seed: number): { won: boolean; turns: number 
   return { won: false, turns: MAX_TURNS };
 }
 
-console.log(`${MATCHES} fights per stage (student answers ${CORRECT_RATE * 100}% right, no skills/items)\n`);
+console.log(`${MATCHES} fights per stage (student answers ${CORRECT_RATE * 100}% right, no items, ${SKILLS ? '+1 with +2 every turn' : 'no skills'})\n`);
 console.log('stage  win%  avg turns  student hit%/dmg  enemy hit%/dmg  enemy');
 for (const s of STAGES) {
   tally.p = { shots: 0, hits: 0, dmg: 0 };

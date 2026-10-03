@@ -11,9 +11,15 @@ import {
   GAUGE_HIT,
   GAUGE_HURT,
   GAUGE_MAX,
+  GAUGE_SHOT,
   ITEM_SKILLS,
+  POWER_BONUS,
   PUSH_DISTANCE,
   SPECIAL_COOLDOWN,
+  SPECIAL_COST,
+  STAMINA_MAX,
+  VOLLEY_DAMAGE,
+  WALK_PX_PER_STAMINA,
   freshItemUses,
   planVolley,
   strikeBolt,
@@ -28,8 +34,6 @@ import { WORLD_WIDTH, type Terrain } from './terrain';
 
 export const FIGHTER_HP = 1000;
 export const TURN_SECONDS = 20;
-/** px of walking allowed per turn */
-export const WALK_PER_TURN = 220;
 /** Highest step a fighter can walk up, px */
 export const CLIMB = 20;
 /** Hand position relative to the feet, for a fighter facing right */
@@ -251,80 +255,164 @@ export function tickBurn(u: Unit): number {
   return dmg;
 }
 
-/** Knowledge gauge changes from a shot: the shooter +GAUGE_HIT per hit on someone else, each target +GAUGE_HURT */
-export function gaugeGains(timeline: ShotTimeline, shooterId: string): Map<string, number> {
-  const gains = new Map<string, number>();
-  const add = (id: string, n: number) => gains.set(id, (gains.get(id) ?? 0) + n);
-  for (const e of timeline.events) {
-    if (e.kind !== 'explode') continue;
-    for (const h of e.hits) {
-      if (h.id === shooterId) continue;
-      add(shooterId, GAUGE_HIT);
-      add(h.id, GAUGE_HURT);
+/**
+ * Gauge changes from one turn's shots (all rounds together): the shooter gets
+ * GAUGE_SHOT for firing plus GAUGE_HIT if they hit anyone, and everyone hit
+ * gets GAUGE_HURT once, however many shells landed on them.
+ */
+export function gaugeGains(timelines: ShotTimeline[], shooterId: string): Map<string, number> {
+  const gains = new Map<string, number>([[shooterId, GAUGE_SHOT]]);
+  const hurt = new Set<string>();
+  for (const tl of timelines) {
+    for (const e of tl.events) {
+      if (e.kind !== 'explode') continue;
+      for (const h of e.hits) if (h.id !== shooterId) hurt.add(h.id);
     }
   }
+  if (hurt.size > 0) gains.set(shooterId, GAUGE_SHOT + GAUGE_HIT);
+  for (const id of hurt) gains.set(id, GAUGE_HURT);
   return gains;
 }
 
 // ---- Skills bookkeeping ----------------------------------------------------------------
 
 export type SkillSlot = ItemSkill | 'special' | 'ultimate';
-export const SKILL_SLOTS: SkillSlot[] = ['double', 'triple', 'heal', 'plane', 'stealth', 'special', 'ultimate'];
+/** Order on the skill bar (keys 1–9, 0) */
+export const SKILL_SLOTS: SkillSlot[] = ['plus1', 'plus2', 'triple', 'power', 'special', 'ultimate', 'plane', 'shield', 'heal', 'stealth'];
 
 /** A fighter's skills for one match */
 export interface SkillState {
-  uses: Record<ItemSkill, number>;
+  /** Uses left this match, for skills that have a limit (heal, stealth) */
+  uses: Partial<Record<ItemSkill, number>>;
   /** Weapon special allowed (★3+ in stages, everyone in 2-player and PvP) */
   specialUnlocked: boolean;
   /** Own turns until the special can be used again */
   specialCooldown: number;
-  /** Knowledge gauge 0–GAUGE_MAX */
+  /** Power gauge 0–GAUGE_MAX */
   gauge: number;
-  usedThisTurn: boolean;
-  /** Shot skill picked for this turn's shot */
-  armed: SkillSlot | null;
+  /** Stamina left this turn: walking and skills both use it */
+  stamina: number;
+  /** Instant skills already used this turn */
+  used: SkillSlot[];
+  /** Shot skills picked for this turn's shot (their stamina is already taken; unpick to get it back) */
+  armed: SkillSlot[];
 }
 
 export function newSkillState(specialUnlocked: boolean): SkillState {
-  return { uses: freshItemUses(), specialUnlocked, specialCooldown: 0, gauge: 0, usedThisTurn: false, armed: null };
+  return { uses: freshItemUses(), specialUnlocked, specialCooldown: 0, gauge: 0, stamina: STAMINA_MAX, used: [], armed: [] };
 }
 
-/** Why a skill can't be used right now, or null if it can */
-export function skillBlocker(s: SkillState, slot: SkillSlot, hpFull: boolean): 'used' | 'empty' | 'locked' | 'cooldown' | 'gauge' | 'full' | null {
+export type InstantSkill = 'heal' | 'stealth' | 'shield';
+
+export function isInstantSkill(slot: SkillSlot): slot is InstantSkill {
+  return slot !== 'special' && slot !== 'ultimate' && ITEM_SKILLS[slot].kind === 'instant';
+}
+
+export function isSkillSlot(x: unknown): x is SkillSlot {
+  return typeof x === 'string' && (SKILL_SLOTS as string[]).includes(x);
+}
+
+export function skillCost(slot: SkillSlot): number {
+  if (slot === 'special') return SPECIAL_COST;
+  if (slot === 'ultimate') return 0;
+  return ITEM_SKILLS[slot].cost;
+}
+
+/** Skills that decide what flies out of the barrel: only one of these per shot */
+const SHOT_SHAPES: SkillSlot[] = ['triple', 'plane', 'special', 'ultimate'];
+
+/** Two shot skills that can't go together in one turn */
+export function skillsClash(a: SkillSlot, b: SkillSlot): boolean {
+  if (a === b || isInstantSkill(a) || isInstantSkill(b)) return false;
+  // The paper plane carries you instead of hurting anyone: nothing goes with it
+  if (a === 'plane' || b === 'plane') return true;
+  if (SHOT_SHAPES.includes(a) && SHOT_SHAPES.includes(b)) return true;
+  // The Ultimate is one big shell: no extra rounds
+  const pair = (x: SkillSlot, y: SkillSlot) => (a === x && b === y) || (a === y && b === x);
+  return pair('ultimate', 'plus1') || pair('ultimate', 'plus2');
+}
+
+export type SkillBlocker = 'used' | 'empty' | 'locked' | 'cooldown' | 'gauge' | 'full' | 'clash' | 'stamina';
+
+/** Why a skill can't be picked right now, or null if it can */
+export function skillBlocker(s: SkillState, slot: SkillSlot, hpFull: boolean): SkillBlocker | null {
   if (slot === 'special') {
     if (!s.specialUnlocked) return 'locked';
     if (s.specialCooldown > 0) return 'cooldown';
   } else if (slot === 'ultimate') {
     if (s.gauge < GAUGE_MAX) return 'gauge';
   } else {
-    if (s.uses[slot] <= 0) return 'empty';
+    if ((s.uses[slot] ?? 1) <= 0) return 'empty';
     if (slot === 'heal' && hpFull) return 'full';
   }
-  return s.usedThisTurn ? 'used' : null;
+  if (s.used.includes(slot) || s.armed.includes(slot)) return 'used';
+  if (s.armed.some((a) => skillsClash(a, slot))) return 'clash';
+  if (s.stamina < skillCost(slot)) return 'stamina';
+  return null;
 }
 
-export function isInstantSkill(slot: SkillSlot): slot is 'heal' | 'stealth' {
-  return slot !== 'special' && slot !== 'ultimate' && ITEM_SKILLS[slot].kind === 'instant';
+/** Take a skill (check skillBlocker first): pay its stamina; an instant one also uses up a use now */
+export function pickSkill(s: SkillState, slot: SkillSlot) {
+  s.stamina -= skillCost(slot);
+  if (isInstantSkill(slot)) {
+    s.used.push(slot);
+    if (s.uses[slot] !== undefined) s.uses[slot]!--;
+  } else {
+    s.armed.push(slot);
+  }
 }
 
-/** The kind of shot an armed skill makes ('double' is two normal shots) */
-export function shotModeFor(armed: SkillSlot | null): ShotMode {
-  return armed === 'triple' || armed === 'plane' || armed === 'special' || armed === 'ultimate' ? armed : 'normal';
+/** Put back a shot skill picked this turn, and get its stamina back */
+export function unpickSkill(s: SkillState, slot: SkillSlot) {
+  const i = s.armed.indexOf(slot);
+  if (i < 0) return;
+  s.armed.splice(i, 1);
+  s.stamina += skillCost(slot);
 }
 
-/** Pay for a skill (when an instant one is used, or when an armed shot is fired) */
-export function spendSkill(s: SkillState, slot: SkillSlot) {
-  s.usedThisTurn = true;
-  s.armed = null;
-  if (slot === 'special') s.specialCooldown = SPECIAL_COOLDOWN;
-  else if (slot === 'ultimate') s.gauge = 0;
-  else s.uses[slot]--;
+/** px the fighter can still walk this turn */
+export function walkAllowance(s: SkillState): number {
+  return Math.max(0, s.stamina) * WALK_PX_PER_STAMINA;
 }
 
-/** Start of the fighter's own turn */
+export function spendWalk(s: SkillState, px: number) {
+  s.stamina = Math.max(0, s.stamina - px / WALK_PX_PER_STAMINA);
+}
+
+/** What a set of shot skills makes this turn */
+export interface Loadout {
+  mode: ShotMode;
+  /** Rounds fired one after another with the same aim (+1 and +2 add rounds) */
+  rounds: number;
+  /** Damage multiplier for every round */
+  damageMul: number;
+}
+
+export function loadoutOf(armed: readonly SkillSlot[]): Loadout {
+  const has = (k: SkillSlot) => armed.includes(k);
+  const mode: ShotMode = has('ultimate') ? 'ultimate' : has('plane') ? 'plane' : has('special') ? 'special' : has('triple') ? 'triple' : 'normal';
+  const rounds = 1 + (has('plus1') ? 1 : 0) + (has('plus2') ? 2 : 0);
+  const damageMul = VOLLEY_DAMAGE[rounds - 1] * (has('power') ? POWER_BONUS : 1);
+  return { mode, rounds, damageMul };
+}
+
+/** The shot is fired: the special rests, the Ultimate empties the gauge. Returns what to fire. */
+export function fireSkills(s: SkillState): Loadout {
+  const loadout = loadoutOf(s.armed);
+  for (const slot of s.armed) {
+    if (slot === 'special') s.specialCooldown = SPECIAL_COOLDOWN;
+    else if (slot === 'ultimate') s.gauge = 0;
+    else if (s.uses[slot] !== undefined) s.uses[slot]!--;
+  }
+  s.armed = [];
+  return loadout;
+}
+
+/** Start of the fighter's own turn: a full stamina bar */
 export function startSkillTurn(s: SkillState) {
-  s.usedThisTurn = false;
-  s.armed = null;
+  s.stamina = STAMINA_MAX;
+  s.used = [];
+  s.armed = [];
   if (s.specialCooldown > 0) s.specialCooldown--;
 }
 

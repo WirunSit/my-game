@@ -11,20 +11,22 @@ import {
   Rng,
   TURN_SECONDS,
   Terrain,
-  WALK_PER_TURN,
+  SHIELD_FACTOR,
+  WALK_PX_PER_STAMINA,
   WORLD_WIDTH,
   addGauge,
+  fireSkills,
   baseWeaponStats,
   fighterMuzzle,
   gaugeGains,
   isInstantSkill,
+  isSkillSlot,
   newFighterUnit,
   newSkillState,
+  pickSkill,
   resolveShot,
   sanitizeOutfit,
-  shotModeFor,
   skillBlocker,
-  spendSkill,
   startSkillTurn,
   tickBurn,
   weaponDef,
@@ -61,6 +63,8 @@ interface Seat {
   info: PlayerInfo;
   unit: Unit;
   skills: SkillState;
+  /** Shield skill: takes half damage until their next turn */
+  shield: boolean;
   angle: number;
   wantsRematch: boolean;
 }
@@ -123,6 +127,7 @@ export class PvpRoom {
       },
       unit: newFighterUnit(id, 0, 0),
       skills: newSkillState(true),
+      shield: false,
       angle: 45,
       wantsRematch: false,
     });
@@ -138,6 +143,7 @@ export class PvpRoom {
       const y = this.terrain.groundBelow(x, 0) ?? 400;
       s.unit = newFighterUnit(s.id, x, y);
       s.skills = newSkillState(true);
+      s.shield = false;
       s.angle = 45;
       s.wantsRematch = false;
       s.info = { ...s.info, x, y, facing: i === 0 ? 1 : -1 };
@@ -170,7 +176,7 @@ export class PvpRoom {
       case 'fire':
         if (this.phase === 'aiming' && isActor) {
           this.place(seat, msg.x, msg.y, msg.facing, msg.angle);
-          this.fire(seat, msg.power, msg.armed);
+          this.fire(seat, msg.power, Array.isArray(msg.armed) ? msg.armed.filter(isSkillSlot) : []);
         }
         break;
       case 'pass':
@@ -219,6 +225,7 @@ export class PvpRoom {
     this.damageMul = 1;
     this.walkFromX = actor.unit.x;
     startSkillTurn(actor.skills);
+    actor.shield = false;
     const burn = tickBurn(actor.unit);
     const hp = Object.fromEntries(this.seats.map((s) => [s.id, s.unit.hp]));
     for (const s of this.seats) {
@@ -264,10 +271,21 @@ export class PvpRoom {
     this.later(800, () => this.endTurn());
   }
 
-  /** Accept the player's position if they didn't walk further than allowed, then stand them on the ground */
+  /** Stamina the player's walk this turn has used (judged by how far they got, with a little slack) */
+  private walkCost(seat: Seat): number {
+    return Math.max(0, Math.abs(seat.unit.x - this.walkFromX) - 8) / WALK_PX_PER_STAMINA;
+  }
+
+  /** The player's skills as if their walking were paid for, to check what they can still afford */
+  private budget(seat: Seat): SkillState {
+    return { ...seat.skills, stamina: seat.skills.stamina - this.walkCost(seat) };
+  }
+
+  /** Accept the player's position if they didn't walk further than their stamina allows, then stand them on the ground */
   private place(seat: Seat, x: number, y: number, facing: number, angle: number) {
     if (Number.isFinite(x)) {
-      const nx = Math.max(this.walkFromX - WALK_PER_TURN - 8, Math.min(this.walkFromX + WALK_PER_TURN + 8, x));
+      const reach = Math.max(0, seat.skills.stamina) * WALK_PX_PER_STAMINA + 8;
+      const nx = Math.max(this.walkFromX - reach, Math.min(this.walkFromX + reach, x));
       const ground = this.terrain.groundBelow(nx, (Number.isFinite(y) ? y : seat.unit.y) - CLIMB);
       if (ground !== null) {
         seat.unit.x = Math.max(0, Math.min(WORLD_WIDTH - 1, nx));
@@ -279,24 +297,30 @@ export class PvpRoom {
   }
 
   private instantSkill(seat: Seat, slot: SkillSlot) {
-    if (!isInstantSkill(slot) || skillBlocker(seat.skills, slot, seat.unit.hp >= seat.unit.maxHp) !== null) return;
-    spendSkill(seat.skills, slot);
+    if (!isSkillSlot(slot) || !isInstantSkill(slot) || skillBlocker(this.budget(seat), slot, seat.unit.hp >= seat.unit.maxHp) !== null) return;
+    pickSkill(seat.skills, slot);
     if (slot === 'heal') seat.unit.hp = Math.min(seat.unit.maxHp, seat.unit.hp + HEAL_AMOUNT);
+    if (slot === 'shield') seat.shield = true;
     for (const s of this.seats) this.opts.send(s.id, { t: 'skillUsed', id: seat.id, slot, hp: seat.unit.hp, skills: s.skills });
   }
 
-  private fire(seat: Seat, power: number, armed: SkillSlot | null) {
+  private fire(seat: Seat, power: number, wanted: SkillSlot[]) {
     this.clearTimer();
     this.phase = 'resolving';
-    if (armed && (isInstantSkill(armed) || skillBlocker(seat.skills, armed, true) !== null)) armed = null;
-    if (armed) spendSkill(seat.skills, armed);
+    // Take the shot skills the player picked, as far as their stamina (after walking) reaches
+    const budget = this.budget(seat);
+    budget.armed = [];
+    for (const slot of wanted) if (!isInstantSkill(slot) && skillBlocker(budget, slot, true) === null) pickSkill(budget, slot);
+    const armed = [...budget.armed];
+    seat.skills.armed = budget.armed;
+    seat.skills.stamina = Math.max(0, budget.stamina);
+    const loadout = fireSkills(seat.skills);
 
     const weapon = baseWeaponStats(seat.info.weaponId);
-    const mode = shotModeFor(armed);
-    const shots = armed === 'double' ? 2 : 1;
+    const mode = loadout.mode;
     const units = this.seats.map((s) => s.unit);
     const timelines: ShotTimeline[] = [];
-    for (let k = 0; k < shots; k++) {
+    for (let k = 0; k < loadout.rounds; k++) {
       if (k > 0 && !units.some((u) => u !== seat.unit && u.alive)) break;
       if (!seat.unit.alive) break;
       const m = fighterMuzzle(seat.unit.x, seat.unit.y, seat.info.facing, seat.angle);
@@ -307,14 +331,16 @@ export class PvpRoom {
         special: mode === 'special' ? weaponSpecial(weapon.id).kind : null,
         damage: weapon.damage,
         radius: weapon.radius,
-        damageMul: k === 0 ? this.damageMul : 1,
+        damageMul: loadout.damageMul * this.damageMul,
+      }, {
+        modifyDamage: (id, dmg) => (this.seats.find((o) => o.id === id)?.shield ? Math.round(dmg * SHIELD_FACTOR) : dmg),
       });
       this.terrain = result.terrain;
-      for (const [id, n] of gaugeGains(result, seat.id)) {
-        const s = this.seats.find((o) => o.id === id);
-        if (s) addGauge(s.skills, n);
-      }
       timelines.push(compact(result));
+    }
+    for (const [id, n] of gaugeGains(timelines, seat.id)) {
+      const s = this.seats.find((o) => o.id === id);
+      if (s) addGauge(s.skills, n);
     }
 
     const unitsOut = this.seats.map((s) => ({ id: s.id, x: s.unit.x, y: s.unit.y, hp: s.unit.hp, alive: s.unit.alive }));

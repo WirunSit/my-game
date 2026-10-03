@@ -102,7 +102,7 @@ test('shots are worked out by the server and sent to both players; turns alterna
   const { wind } = await a.next('turn');
   const [pa, pb] = sa.players;
   const power = aimPower(sa.map, pa, pb, 1, wind);
-  await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power, armed: null });
+  await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power, armed: [] });
   const shotA = await a.next('shot');
   const shotB = await b.next('shot');
   assert.deepEqual(shotA.timelines, shotB.timelines);
@@ -118,11 +118,11 @@ test('walking further than allowed is cut short; moves are relayed to the other 
   const start = sa.players[0];
   await a.send({ t: 'move', x: start.x + 900, y: start.y, facing: 1, angle: 60 });
   const moved = await b.next('moved');
-  assert.ok(moved.x <= start.x + 230, `moved to ${moved.x}`);
+  assert.ok(moved.x <= start.x + 310, `moved to ${moved.x}`);
   assert.equal(moved.angle, 60);
 });
 
-test('skills: heal is refused at full health, double shot fires twice, uses are counted', async () => {
+test('skills: heal is refused at full health; +1 with +2 fires four rounds; stamina is checked', async () => {
   const lobby = fastLobby();
   const { a, b, sa } = await startMatch(lobby);
   const { wind } = await a.next('turn');
@@ -130,10 +130,27 @@ test('skills: heal is refused at full health, double shot fires twice, uses are 
   await tick();
   assert.equal(b.inbox.some((m) => m.t === 'skillUsed'), false, 'heal refused at full health');
   const [pa, pb] = sa.players;
-  await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power: aimPower(sa.map, pa, pb, 1, wind), armed: 'double' });
+  await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power: aimPower(sa.map, pa, pb, 1, wind), armed: ['plus1', 'plus2', 'power'] });
   const shot = await a.next('shot');
-  assert.equal(shot.timelines.length, 2);
-  assert.equal(shot.skills!.uses.double, 1);
+  // power did not fit in the stamina left after +1 and +2
+  assert.deepEqual(shot.armed, ['plus1', 'plus2']);
+  assert.equal(shot.timelines.length, 4);
+});
+
+test('skills: the shield halves damage until the shielded player’s next turn', async () => {
+  const lobby = fastLobby();
+  const { a, b, sa } = await startMatch(lobby);
+  const [pa, pb] = sa.players;
+  // A raises a shield and passes; B's shot at A then only does half damage
+  await a.next('turn');
+  await a.send({ t: 'skill', slot: 'shield' });
+  assert.equal((await b.next('skillUsed')).slot, 'shield');
+  await a.send({ t: 'pass' });
+  const t2 = await b.next('turn');
+  await b.send({ t: 'fire', x: pb.x, y: pb.y, facing: -1, angle: 45, power: aimPower(sa.map, pb, pa, -1, t2.wind), armed: [] });
+  const shot = await a.next('shot');
+  const hits = shot.timelines.flatMap((tl) => tl.events.flatMap((e) => (e.kind === 'explode' ? e.hits : []))).filter((h) => h.id === a.id);
+  assert.ok(hits.length > 0 && hits.every((h) => h.reduced), 'A took reduced damage');
 });
 
 test('a turn with no shot is skipped after the time limit', async () => {
@@ -175,7 +192,7 @@ test('a full match ends with a winner, and both can ask for a rematch', async ()
     await b.next('turn');
     const me = t.actor === a.id ? 0 : 1;
     const facing = me === 0 ? 1 : -1;
-    await players[me].send({ t: 'fire', x: pos[me].x, y: pos[me].y, facing, angle: 45, power: aimPower(map, pos[me], pos[1 - me], facing, t.wind), armed: null });
+    await players[me].send({ t: 'fire', x: pos[me].x, y: pos[me].y, facing, angle: 45, power: aimPower(map, pos[me], pos[1 - me], facing, t.wind), armed: [] });
     const shot = await a.next('shot');
     await b.next('shot');
     pos = [a.id, b.id].map((id) => shot.units.find((u) => u.id === id)!);

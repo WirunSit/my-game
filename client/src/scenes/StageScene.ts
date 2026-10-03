@@ -439,11 +439,17 @@ export class StageScene extends ArenaScene {
   }
 
   protected modifyDamage(target: Combatant, damage: number): number {
+    const dmg = super.modifyDamage(target, damage); // shield skill
+    // Crate shield: halves one hit
     if (target === this.player && this.shield) {
       this.shield = false;
-      return Math.round(damage / 2);
+      return Math.round(dmg / 2);
     }
-    return damage;
+    return dmg;
+  }
+
+  protected shieldShown(c: Combatant): boolean {
+    return super.shieldShown(c) || (c === this.player && this.shield);
   }
 
   /** The shield was used up when the shot was worked out; tell the player when it actually lands */
@@ -484,7 +490,7 @@ export class StageScene extends ArenaScene {
     if (this.doubleShot) items.push({ icon: 'fx/proj_cannonball', text: 'x2' });
     if (this.damageMul > 1) items.push({ icon: 'fx/fx_spark', text: '+30%' });
     this.hud.setStatus(items);
-    this.player.setShieldVisible(this.shield);
+    this.syncShield(this.player);
   }
 
   update(time: number, delta: number) {

@@ -84,12 +84,13 @@ await fire(a);
 await myTurn(b);
 await shot(b, '5-b-turn');
 
-// B camouflages, then shoots back with a triple shot
-await b.keyboard.press('5');
+// B camouflages (key 0), then shoots back with three shells and +1 (keys 3, 1)
+await b.keyboard.press('0');
 await a.waitForFunction(() => window.game.scene.getScene('Online').them.hidden === true, null, { timeout: 10_000 });
 await shot(a, '6-a-sees-camouflage');
 await myTurn(b); // still B's turn
-await b.keyboard.press('2');
+await b.keyboard.press('3');
+await b.keyboard.press('1');
 await fire(b, 1100);
 await myTurn(a);
 await idle(b);

@@ -90,7 +90,7 @@ const PLANS: WorldPlan[] = [
       { weapon: W.big_slime, shots: 2, name: 'ฝนน้ำยาพิษ' },
       { weapon: W.atom_storm, shots: 3, name: 'พายุอะตอม' },
     ],
-    hp: [600, 1100, 1150],
+    hp: [850, 1550, 1600],
   },
   {
     world: 2,
@@ -102,7 +102,7 @@ const PLANS: WorldPlan[] = [
       { weapon: W.germ_burst, shots: 2, name: 'แบ่งเซลล์' },
       { weapon: W.cell_flood, shots: 3, name: 'น้ำท่วมเซลล์' },
     ],
-    hp: [750, 1200, 1400],
+    hp: [1050, 1700, 1950],
   },
   {
     world: 3,
@@ -114,7 +114,7 @@ const PLANS: WorldPlan[] = [
       { weapon: W.big_spore, shots: 2, name: 'พายุสปอร์' },
       { weapon: W.thorn_rain, shots: 3, name: 'ฝนหนาม' },
     ],
-    hp: [850, 1300, 1450],
+    hp: [1200, 1800, 2050],
   },
   {
     world: 4,
@@ -126,7 +126,7 @@ const PLANS: WorldPlan[] = [
       { weapon: W.flame_ball, shots: 2, name: 'เปลวไฟคู่' },
       { weapon: W.meteor_rain, shots: 3, name: 'ฝนอุกกาบาตลาวา' },
     ],
-    hp: [950, 1400, 1650],
+    hp: [1350, 1950, 2300],
   },
   {
     world: 5,
@@ -138,7 +138,7 @@ const PLANS: WorldPlan[] = [
       { weapon: W.thunder_ball, shots: 2, name: 'ฟ้าคะนอง' },
       { weapon: W.lightning_strike, shots: 3, name: 'สายฟ้าฟาด' },
     ],
-    hp: [1050, 1500, 1750],
+    hp: [1450, 2100, 2450],
   },
 ];
 
@@ -177,7 +177,7 @@ function worldStages(p: WorldPlan): StageConfig[] {
       ultimateEvery: 3,
       ultimate: p.ultimates[1],
       gimmick: p.boss.gimmick,
-      splitInto: p.boss.gimmick === 'split' ? body(p.boss.texture, `${p.boss.name} (ร่างแยก)`, 130, 500, p.weapons[0], 0.45) : undefined,
+      splitInto: p.boss.gimmick === 'split' ? body(p.boss.texture, `${p.boss.name} (ร่างแยก)`, 130, 700, p.weapons[0], 0.45) : undefined,
       maxDifficulty: 3,
       isBoss: true,
       drops: { weapons, chance: 1, rarityWeights: late ? [0, 30, 50, 17, 3] : [0, 50, 40, 9, 1] },

@@ -32,6 +32,7 @@ export class Hud {
   private readonly powerMarker: Phaser.GameObjects.Triangle;
   private readonly powerArea: { x: number; w: number };
   private readonly staminaFill: Phaser.GameObjects.Rectangle;
+  private readonly staminaText: Phaser.GameObjects.Text;
   private readonly minimapGround: Phaser.GameObjects.Graphics;
   private readonly minimapDots: Phaser.GameObjects.Graphics;
   private readonly mapScale: number;
@@ -74,15 +75,16 @@ export class Hud {
     this.powerMarker = scene.add.triangle(0, barY - innerH / 2 - 8, 0, 0, 16, 0, 8, 12, 0xffffff).setStrokeStyle(2, 0x1b1d3a);
     const powerLabel = scene.add.text(frame.x, barY - 42, 'แรง', textStyle(18)).setOrigin(0.5);
 
-    // Walking stamina (above the move buttons)
+    // Stamina for walking and skills (above the move buttons)
     const stY = GAME_HEIGHT - 138;
-    const stLabel = scene.add.text(40, stY - 20, 'พลังเดิน', textStyle(16)).setOrigin(0, 0.5);
+    const stLabel = scene.add.text(40, stY - 20, 'สตามินา', textStyle(16)).setOrigin(0, 0.5);
+    this.staminaText = scene.add.text(230, stY - 20, '', textStyle(16, '#5fd4ff')).setOrigin(1, 0.5);
     const stBg = scene.add.rectangle(40, stY, 190, 12, 0x1b1d3a, 0.7).setOrigin(0, 0.5).setStrokeStyle(2, 0xffffff, 0.7);
     this.staminaFill = scene.add.rectangle(42, stY, 186, 8, 0x5fd4ff).setOrigin(0, 0.5);
 
     for (const o of [
       timerBg, this.timerText, this.windArrow, this.windText, mapBg, this.minimapGround, this.minimapDots,
-      gauge, this.angleText, frame, this.powerFill, this.powerMarker, powerLabel, stLabel, stBg, this.staminaFill,
+      gauge, this.angleText, frame, this.powerFill, this.powerMarker, powerLabel, stLabel, this.staminaText, stBg, this.staminaFill,
     ]) {
       o.setScrollFactor(0).setDepth(DEPTH.hud);
     }
@@ -174,8 +176,9 @@ export class Hud {
     if (last !== null) this.powerMarker.x = this.powerArea.x + (this.powerArea.w * last) / 100 - 8;
   }
 
-  setStamina(frac: number) {
-    this.staminaFill.width = 186 * Math.max(0, frac);
+  setStamina(frac: number, value?: number) {
+    this.staminaFill.width = 186 * Math.max(0, Math.min(1, frac));
+    this.staminaText.setText(value === undefined ? '' : String(Math.floor(value)));
   }
 
   /** Redraw the terrain outline in the mini-map (call after craters change it) */

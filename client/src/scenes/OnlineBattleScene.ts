@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { Terrain, addExp, baseWeaponStats, pvpRewards, type ServerMessage, type SkillState } from '@sciboom/shared';
+import { Terrain, addExp, baseWeaponStats, pickSkill, pvpRewards, type InstantSkill, type ServerMessage, type SkillState } from '@sciboom/shared';
 import type { Combatant } from '../game/Combatant';
 import { Fighter } from '../game/Fighter';
 import type { Net } from '../net/Net';
@@ -110,7 +110,8 @@ export class OnlineBattleScene extends ArenaScene {
       }
       case 'skillUsed': {
         const f = this.fighters.get(msg.id)!;
-        this.applySkills(msg.skills);
+        // Our own skill was already taken here when we tapped it (with our walking so far); keep that
+        if (f !== this.me) this.applySkills(msg.skills);
         if (msg.slot === 'stealth' && f !== this.me) {
           f.setStealth(true, 0.06);
           this.hud.banner(`${f.name} พรางตัว!`, '#bfe8ff');
@@ -147,7 +148,9 @@ export class OnlineBattleScene extends ArenaScene {
     this.turnSeconds = msg.seconds;
     this.setWind(msg.wind);
     this.hud.setActive(this.combatants.indexOf(actor));
+    this.newGaugeTurn();
     if (actor.hidden) actor.setStealth(false);
+    this.endShield(actor);
     if (msg.burn > 0) await this.showBurn(actor, msg.burn);
     for (const [id, hp] of Object.entries(msg.hp)) {
       const f = this.fighters.get(id);
@@ -176,7 +179,7 @@ export class OnlineBattleScene extends ArenaScene {
         this.net.send({ t: 'pass' });
         return;
       }
-      const armed = this.skills.get(this.me)?.armed ?? null;
+      const armed = [...(this.skills.get(this.me)?.armed ?? [])];
       this.net.send({ t: 'fire', x: this.me.x, y: this.me.y, facing: this.me.facing, angle: this.me.angle, power, armed });
       this.hud.showTimer(false);
     });
@@ -191,13 +194,13 @@ export class OnlineBattleScene extends ArenaScene {
       f.angle = msg.angle;
       f.snapTo(msg.x, msg.y);
     }
-    if (msg.armed === 'ultimate') {
+    if (msg.armed.includes('ultimate')) {
       this.hud.banner('ไม้ตาย!', '#ffcc33');
       await this.wait(400);
     }
     for (let i = 0; i < msg.timelines.length; i++) {
       if (i > 0) {
-        this.hud.banner('นัดที่สอง!', '#ffdd33');
+        this.hud.banner(`รอบที่ ${i + 1}!`, '#ffdd33');
         await this.wait(500);
       }
       await this.playTimeline(f, msg.timelines[i]);
@@ -248,10 +251,12 @@ export class OnlineBattleScene extends ArenaScene {
 
   /** The server already started our turn; just clear what we picked last time */
   protected beginSkillTurn(sk: SkillState) {
-    sk.armed = null;
+    sk.armed = [];
   }
 
-  protected useInstantSkill(_f: Fighter, slot: 'heal' | 'stealth') {
+  /** Take it here right away (so stamina adds up while we keep walking); the server shows it to both of us */
+  protected useInstantSkill(f: Fighter, slot: InstantSkill) {
+    pickSkill(this.skills.get(f)!, slot);
     this.net.send({ t: 'skill', slot });
   }
 

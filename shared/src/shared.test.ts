@@ -307,7 +307,24 @@ test('a lightning bolt falls straight onto the impact point', () => {
 });
 
 // ---- Battle engine ---------------------------------------------------------------------
-import { fighterMuzzle, gaugeGains, newFighterUnit, newSkillState, resolveShot, skillBlocker, spendSkill, startSkillTurn, tickBurn, type ShotRequest } from './index';
+import {
+  STAMINA_MAX,
+  fighterMuzzle,
+  fireSkills,
+  gaugeGains,
+  loadoutOf,
+  newFighterUnit,
+  newSkillState,
+  pickSkill,
+  resolveShot,
+  skillBlocker,
+  spendWalk,
+  startSkillTurn,
+  tickBurn,
+  unpickSkill,
+  walkAllowance,
+  type ShotRequest,
+} from './index';
 
 const duel = () => {
   const t = Terrain.generate(9);
@@ -340,7 +357,10 @@ test('a shot on target damages, carves a copy of the map, and fills the gauge', 
   const req = aimAt(t, a, b);
   const r = resolveShot(t, [a, b], req);
   assert.ok(b.hp < 1000, 'b took damage');
-  assert.ok((gaugeGains(r, 'a').get('a') ?? 0) > 0);
+  const gains = gaugeGains([r, r], 'a');
+  assert.equal(gains.get('a'), 20, 'firing + one hit, counted once per turn');
+  assert.equal(gains.get('b'), 15, 'getting hit, counted once even if hit twice');
+  assert.equal(gaugeGains([], 'a').get('a'), 10, 'firing alone');
   // Without b in the way the same shell lands on the ground: the crater goes on a copy only
   const before = t.mask.reduce((s, v) => s + v, 0);
   const ground = resolveShot(t, [a], req);
@@ -380,14 +400,62 @@ test('shields can lower damage through the hook', () => {
   assert.ok(hit.reduced);
 });
 
-test('skills: one per turn, limited uses, special cooldown', () => {
+test('skills: stamina pays for walking and skills; pick, put back, combine', () => {
+  const s = newSkillState(true);
+  assert.equal(s.stamina, STAMINA_MAX);
+  // +1 with +2: four rounds
+  pickSkill(s, 'plus1');
+  pickSkill(s, 'plus2');
+  assert.equal(s.stamina, 5);
+  assert.deepEqual(loadoutOf(s.armed), { mode: 'normal', rounds: 4, damageMul: 0.4 });
+  assert.equal(skillBlocker(s, 'power', false), 'stamina');
+  unpickSkill(s, 'plus1');
+  assert.equal(s.stamina, 45);
+  // Three shells with +2 uses the whole bar
+  pickSkill(s, 'triple');
+  assert.equal(s.stamina, 0);
+  assert.equal(walkAllowance(s), 0, 'no stamina left to walk');
+  assert.equal(loadoutOf(s.armed).mode, 'triple');
+  assert.equal(loadoutOf(s.armed).rounds, 3);
+});
+
+test('skills: what cannot go together', () => {
+  const s = newSkillState(true);
+  pickSkill(s, 'triple');
+  assert.equal(skillBlocker(s, 'special', false), 'clash', 'one shell shape per shot');
+  assert.equal(skillBlocker(s, 'plane', false), 'clash', 'the plane goes alone');
+  assert.equal(skillBlocker(s, 'triple', false), 'used');
+  assert.equal(skillBlocker(s, 'shield', false), null, 'instant skills go with anything');
+  s.gauge = 100;
+  unpickSkill(s, 'triple');
+  pickSkill(s, 'ultimate');
+  assert.equal(skillBlocker(s, 'plus1', false), 'clash', 'no extra rounds of the Ultimate');
+  assert.equal(skillBlocker(s, 'power', false), null);
+  pickSkill(s, 'power');
+  const l = fireSkills(s);
+  assert.equal(l.mode, 'ultimate');
+  assert.ok(Math.abs(l.damageMul - 1.3) < 1e-9);
+  assert.equal(s.gauge, 0, 'the Ultimate empties the gauge');
+});
+
+test('skills: limited uses, heal needs lost health, special cooldown and lock', () => {
   const s = newSkillState(true);
   assert.equal(skillBlocker(s, 'heal', true), 'full');
-  spendSkill(s, 'special');
-  assert.equal(skillBlocker(s, 'double', false), 'used');
+  pickSkill(s, 'heal');
+  assert.equal(skillBlocker(s, 'heal', false), 'used', 'once per turn');
+  startSkillTurn(s);
+  pickSkill(s, 'heal');
+  startSkillTurn(s);
+  assert.equal(skillBlocker(s, 'heal', false), 'empty', 'two per match');
+  // Walking uses stamina too
+  spendWalk(s, 150);
+  assert.equal(s.stamina, 50);
+  assert.equal(skillBlocker(s, 'plus2', false), 'stamina');
+  startSkillTurn(s);
+  pickSkill(s, 'special');
+  fireSkills(s);
   startSkillTurn(s);
   assert.equal(skillBlocker(s, 'special', false), 'cooldown');
-  startSkillTurn(s);
   startSkillTurn(s);
   assert.equal(skillBlocker(s, 'special', false), null);
   assert.equal(skillBlocker(s, 'ultimate', false), 'gauge');

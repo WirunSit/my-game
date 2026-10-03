@@ -84,6 +84,8 @@ const SHEETS = [
     names: ['skill_double', 'skill_triple', 'skill_heal', 'skill_plane', 'skill_stealth', 'skill_special', 'skill_ultimate', 'skill_lock'],
   },
   { file: '15.png', dir: 'fx', maxSize: 512, names: ['proj_paper_plane', 'roots', 'warning_circle', 'lava_wave'] },
+  // Optional: skills added with the stamina system (game falls back to existing art without it)
+  { file: '16.png', dir: 'ui', maxSize: 160, names: ['skill_plus2', 'skill_power', 'skill_shield'] },
 ];
 
 // Full-frame backgrounds: no cutting, just resized to the game height and saved as JPEG

@@ -1,5 +1,5 @@
 // Messages between the game and the PvP server (JSON over WebSocket at /ws).
-import type { ShotTimeline, SkillSlot, SkillState } from './battle';
+import type { InstantSkill, ShotTimeline, SkillSlot, SkillState } from './battle';
 import type { Character, Outfit } from './cosmetics';
 import type { QuizItem } from './questions';
 
@@ -27,8 +27,8 @@ export type ClientMessage =
   | { t: 'join'; code: string }
   | { t: 'leave' }
   | { t: 'move'; x: number; y: number; facing: 1 | -1; angle: number }
-  | { t: 'skill'; slot: 'heal' | 'stealth' }
-  | { t: 'fire'; x: number; y: number; facing: 1 | -1; angle: number; power: number; armed: SkillSlot | null }
+  | { t: 'skill'; slot: InstantSkill }
+  | { t: 'fire'; x: number; y: number; facing: 1 | -1; angle: number; power: number; armed: SkillSlot[] }
   | { t: 'pass' }
   | { t: 'answer'; chosen: number }
   | { t: 'rematch' };
@@ -42,7 +42,7 @@ export type ServerMessage =
   | { t: 'quiz'; item: QuizItem; seconds: number }
   | { t: 'quizResult'; id: string; correct: boolean }
   | { t: 'moved'; id: string; x: number; y: number; facing: 1 | -1; angle: number }
-  | { t: 'skillUsed'; id: string; slot: 'heal' | 'stealth'; hp: number; skills: SkillState | null }
+  | { t: 'skillUsed'; id: string; slot: InstantSkill; hp: number; skills: SkillState | null }
   | {
       t: 'shot';
       id: string;
@@ -50,7 +50,8 @@ export type ServerMessage =
       y: number;
       facing: 1 | -1;
       angle: number;
-      armed: SkillSlot | null;
+      /** Shot skills that were used */
+      armed: SkillSlot[];
       timelines: ShotTimeline[];
       /** Where everyone ended up, and their health, once everything settled */
       units: { id: string; x: number; y: number; hp: number; alive: boolean }[];

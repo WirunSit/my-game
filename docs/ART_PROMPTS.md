@@ -362,3 +362,15 @@ A sprite sheet of 4 separate game effects in one row (left to right), large empt
 STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting. No text, no letters, no watermark, no signature, no grid lines, no borders.
 ```
 > วางไฟล์ใน `art/raw/` แล้วรัน `npm run art` เกมจะใช้ภาพใหม่เองอัตโนมัติ (ไอคอน `ui/skill_*`, `fx/proj_paper_plane`, `fx/roots`, `fx/warning_circle`, `fx/lava_wave`)
+
+## 16 — ไอคอนสกิลระบบสตามินา 🔵 (ไม่บังคับ)
+**ไฟล์:** `16.png` | **ขนาด:** 1536×1024 | **พื้นหลัง:** โปร่งใส | แนบภาพ 14 (ให้หน้าตาเข้าชุดกัน)
+> ตอนนี้ 3 ปุ่มนี้ใช้ภาพที่มีอยู่แทน (ลูกปืน 3 ลูก, ประกายไฟ, ฟองโล่) เกมเขียนตัวเลข "+1" "+2" ทับไอคอนเองอยู่แล้ว
+```
+A sprite sheet of 3 round game skill icons in one row, large empty space between them, on a transparent background. Same style as the attached icon sheet: each icon is a circular badge with a thick dark-blue outline and one simple, bold symbol in the middle, readable even when shown very small (50 pixels). No text, no numbers, no letters. Left to right:
+1. Three cannonballs flying one after another in a straight line with orange speed trails (shooting extra rounds).
+2. A red-orange flexing arm / fist with a glowing upward arrow and sparks (power up, more damage).
+3. A round light-blue bubble shield with a white shine and a small star (shield, take less damage).
+STYLE: cute chibi 2D cartoon game art for a kids' turn-based artillery shooting game. Bold clean dark-brown outlines, bright saturated colors, simple cel shading with one soft highlight. Friendly, playful, suitable for 12-year-old students. Flat lighting. No text, no letters, no watermark, no signature, no grid lines, no borders.
+```
+> วางไฟล์ใน `art/raw/` แล้วรัน `npm run art` เกมจะใช้ `ui/skill_plus2`, `ui/skill_power`, `ui/skill_shield` เองอัตโนมัติ
