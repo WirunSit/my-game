@@ -1,8 +1,10 @@
 // Automated smoke test for a boss stage (phase 2): map → stage 1-3 → shoot →
-// crate question → boss ultimate question → victory screen.
+// shell flies through two mystery crates → two crate questions → boss
+// ultimate question → victory screen.
 // Needs the dev server running first:  npm run dev
 // Usage: npm run playtest:stage -w tools
 import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const URL = 'http://localhost:8080/';
@@ -78,16 +80,32 @@ await until(() => window.game.scene.getScene('Stage').phase === 'aiming');
 await wait(300);
 await shot('2-boss-stage');
 
-// Player shoots; pretend the shot also broke a question crate
-await page.keyboard.down('Space');
-await wait(1000);
-await page.keyboard.up('Space');
+// Player shoots; two floating crates are put on the shell's real path as it leaves the barrel
 await stage(() => {
   const s = window.game.scene.getScene('Stage');
-  s.pendingCrates = 1;
   s.enemyTurns = 2; // the boss's next turn will be its ultimate (every 3rd)
+  s.finishHuman(62);
 });
+await until(() => !!window.game.scene.getScene('Stage').playback);
+const placed = await stage(() => {
+  const s = window.game.scene.getScene('Stage');
+  const path = s.playback.timeline.flights[0].path;
+  const live = s.crates.filter((c) => !c.opened);
+  [0.55, 0.75].forEach((f, i) => {
+    const c = live[i];
+    const pt = path[Math.floor(path.length * f)];
+    s.tweens.killTweensOf([c.img, c.glow]);
+    c.x = pt.x;
+    c.y = pt.y;
+    c.img.setPosition(pt.x, pt.y);
+    c.glow.setPosition(pt.x, pt.y);
+  });
+  return live.length;
+});
+assert.ok(placed >= 2, `stage starts with floating crates (${placed})`);
 await until(() => window.game.scene.getScene('Stage').phase === 'quiz');
+const crates = await stage(() => window.game.scene.getScene('Stage').pendingCrates + 1);
+assert.ok(crates >= 2, `the shell collected both crates it flew through (${crates})`);
 await wait(500);
 await shot('3-crate-quiz');
 
@@ -98,7 +116,7 @@ await clickContinue();
 
 // More crate questions may follow (the real shot can break a crate too), then the boss's ultimate question
 let ultimateShots = 0;
-for (let i = 0; i < 4; i++) {
+for (let i = 0; i < 6; i++) {
   await until(() => {
     const s = window.game.scene.getScene('Stage');
     return s.phase === 'quiz' || s.phase === 'aiming' || s.phase === 'over';

@@ -33,13 +33,20 @@ import { showQuiz } from '../ui/QuizPopup';
 import { RARITY_COLORS, addStars } from '../ui/rarity';
 import { ArenaScene } from './ArenaScene';
 
-type Item = 'heal' | 'shield' | 'double' | 'power';
+/** Power-ups from mystery crates (one per right answer; they add up) */
+type Item = 'heal' | 'shield' | 'double' | 'power' | 'gauge';
 const ITEMS: Record<Item, { label: string }> = {
   heal: { label: 'ฟื้นพลัง +250' },
   shield: { label: 'ได้โล่! ลดดาเมจครั้งต่อไปครึ่งหนึ่ง' },
-  double: { label: 'ยิงสองนัดในตาถัดไป!' },
-  power: { label: 'พลังโจมตี +30% นัดถัดไป!' },
+  double: { label: 'ได้นัดเพิ่มในตาถัดไป!' },
+  power: { label: 'พลังโจมตี +30% ตาถัดไป!' },
+  gauge: { label: 'เกจไม้ตาย +35!' },
 };
+/** Most crates floating at once */
+const MAX_CRATES = 3;
+/** Power-up bonus per crate, and the most it can add up to */
+const CRATE_POWER = 0.3;
+const MAX_DAMAGE_MUL = 1.9;
 
 /** Single-player stage: the student vs a minion or boss, with science questions. */
 export class StageScene extends ArenaScene {
@@ -49,8 +56,10 @@ export class StageScene extends ArenaScene {
   private deck!: QuizDeck;
   private crates: Crate[] = [];
   private pendingCrates = 0;
-  private shield = false;
-  private doubleShot = false;
+  /** Crate shields: each one halves one hit */
+  private shield = 0;
+  /** Extra shots after the next turn's shot (crates) */
+  private extraShots = 0;
   private damageMul = 1;
   private enemyTurns = 0;
   private enemySkill = 0;
@@ -78,8 +87,8 @@ export class StageScene extends ArenaScene {
   create() {
     this.crates = [];
     this.pendingCrates = 0;
-    this.shield = false;
-    this.doubleShot = false;
+    this.shield = 0;
+    this.extraShots = 0;
     this.damageMul = 1;
     this.enemyTurns = 0;
     this.stats = { asked: 0, correct: 0, crystals: 0 };
@@ -109,7 +118,7 @@ export class StageScene extends ArenaScene {
     const lastSeen = new Map<string, number>();
     for (const a of save.answers) lastSeen.set(a.id, Math.max(lastSeen.get(a.id) ?? 0, a.at));
     this.deck = new QuizDeck(UNITS[this.stage.unit].questions, this.rng, this.stage.maxDifficulty, { lastSeen });
-    for (let i = 0; i < this.stage.crates; i++) this.spawnCrate();
+    for (let i = 0; i < Math.min(this.stage.crates, MAX_CRATES); i++) this.spawnCrate();
     if (this.stage.gimmick === 'lava') this.drawLava(WORLD_HEIGHT - 70);
     this.updateStatus();
 
@@ -150,10 +159,11 @@ export class StageScene extends ArenaScene {
     this.enemy.clearStun();
     if (this.stage.gimmick === 'lava') await this.lavaBurn();
     if (!this.player.alive) return;
-    if (this.turn > 0 && this.turn % 6 === 0 && this.activeCrates() < this.stage.crates) {
+    // A new mystery crate floats in each turn until there are enough again
+    if (this.turn > 0 && this.activeCrates() < Math.min(this.stage.crates, MAX_CRATES)) {
       this.spawnCrate();
-      this.hud.banner('มีกล่องคำถามใหม่!', '#ffdd33');
-      await this.wait(900);
+      sfx.item();
+      await this.wait(500);
     }
     this.hud.banner('ตาของคุณ!');
     // Stormlord: the wind swings round part-way through the turn
@@ -168,9 +178,9 @@ export class StageScene extends ArenaScene {
     this.stormTimer?.remove();
     if (shots.length > 0) {
       this.damageMul = 1;
-      // Double-shot item from a question crate: one more normal shot
-      if (this.doubleShot && this.enemy.alive && this.player.lastPower !== null) {
-        this.doubleShot = false;
+      // Extra shots from crates: more normal shots with the same aim
+      while (this.extraShots > 0 && this.enemy.alive && this.player.alive && this.player.lastPower !== null) {
+        this.extraShots--;
         this.hud.banner('นัดเพิ่มจากกล่อง!', '#ffdd33');
         await this.wait(500);
         await this.shoot(this.player, this.player.lastPower);
@@ -369,7 +379,7 @@ export class StageScene extends ArenaScene {
     e.stopCharge();
     if (ok) {
       e.showStun();
-      this.damageMul = 1.3;
+      this.damageMul = Math.max(this.damageMul, 1.3);
       this.updateStatus();
       this.hud.banner('ขัดท่าสำเร็จ! ศัตรูมึนงง', '#7dff8a');
       await this.wait(1300);
@@ -419,18 +429,35 @@ export class StageScene extends ArenaScene {
     return res.correct;
   }
 
+  /** One question per crate collected this turn; every right answer gives a power-up */
   private async openPendingCrates() {
+    const total = this.pendingCrates;
+    if (total > 0 && this.player.alive) {
+      this.hud.banner(`เก็บกล่องปริศนาได้ ${total} กล่อง!`, '#ffdd33');
+      await this.wait(900);
+    }
+    let n = 0;
     while (this.pendingCrates > 0 && this.player.alive) {
       this.pendingCrates--;
-      const ok = await this.ask('กล่องคำถาม! ตอบถูกรับไอเท็ม');
+      n++;
+      const ok = await this.ask(total > 1 ? `กล่องปริศนา ${n}/${total}: ตอบถูกรับพลังพิเศษ` : 'กล่องปริศนา: ตอบถูกรับพลังพิเศษ');
       if (ok) {
-        const item = (['heal', 'shield', 'double', 'power'] as Item[])[this.rng.int(0, 3)];
+        const item = this.randomItem();
         sfx.item();
         this.grant(item);
         this.hud.banner(ITEMS[item].label, '#7dff8a');
         await this.wait(1200);
       }
     }
+    this.pendingCrates = 0;
+  }
+
+  /** A random power-up (no healing at full health, no more power once it's maxed) */
+  private randomItem(): Item {
+    const pool = (Object.keys(ITEMS) as Item[]).filter(
+      (i) => !(i === 'heal' && this.player.hp >= this.player.maxHp) && !(i === 'power' && this.damageMul >= MAX_DAMAGE_MUL),
+    );
+    return pool[this.rng.int(0, pool.length - 1)];
   }
 
   private grant(item: Item) {
@@ -441,13 +468,16 @@ export class StageScene extends ArenaScene {
         this.floatText(this.player.x, this.player.y - 130, '+250', '#7dff8a');
         break;
       case 'shield':
-        this.shield = true;
+        this.shield++;
         break;
       case 'double':
-        this.doubleShot = true;
+        this.extraShots++;
         break;
       case 'power':
-        this.damageMul = 1.3;
+        this.damageMul = Math.min(MAX_DAMAGE_MUL, this.damageMul + CRATE_POWER);
+        break;
+      case 'gauge':
+        this.addGauge(this.player, GAUGE_CORRECT_ANSWER);
         break;
     }
     this.updateStatus();
@@ -455,16 +485,16 @@ export class StageScene extends ArenaScene {
 
   protected modifyDamage(target: Combatant, damage: number): number {
     const dmg = super.modifyDamage(target, damage); // shield skill
-    // Crate shield: halves one hit
-    if (target === this.player && this.shield) {
-      this.shield = false;
+    // Crate shield: halves one hit (each one)
+    if (target === this.player && this.shield > 0) {
+      this.shield--;
       return Math.round(dmg / 2);
     }
     return dmg;
   }
 
   protected shieldShown(c: Combatant): boolean {
-    return super.shieldShown(c) || (c === this.player && this.shield);
+    return super.shieldShown(c) || (c === this.player && this.shield > 0);
   }
 
   /** The shield was used up when the shot was worked out; tell the player when it actually lands */
@@ -475,22 +505,39 @@ export class StageScene extends ArenaScene {
     }
   }
 
+  /** The player's shells (and paper plane) collect every crate they fly through */
+  protected onProjectileMove(shooter: Combatant, a: Vec, b: Vec) {
+    if (shooter !== this.player) return;
+    for (const c of this.crates) if (c.touchedBy(a, b)) this.collectCrate(c);
+  }
+
+  /** A blast right next to a crate collects it too */
   protected onExplosion(at: Vec, radius: number, shooter: Combatant) {
+    if (shooter !== this.player) return;
     for (const c of this.crates) {
-      if (c.opened || Math.hypot(c.x - at.x, c.centerY - at.y) > radius + 30) continue;
-      c.open();
-      sfx.crate();
-      if (shooter === this.player) this.pendingCrates++;
-      else this.hud.banner('กล่องคำถามแตก!', '#cccccc');
+      if (!c.opened && Math.hypot(c.x - at.x, c.centerY - at.y) <= radius + 20) this.collectCrate(c);
     }
   }
 
+  private collectCrate(c: Crate) {
+    c.open();
+    sfx.crate();
+    this.pendingCrates++;
+    this.floatText(c.x, c.centerY - 30, '?', '#ffdd33');
+  }
+
+  /** Float a crate in the air between the two sides, where shots fly */
   private spawnCrate() {
+    const lo = Math.min(this.player.x, this.enemy.x) + 170;
+    const hi = Math.max(this.player.x, this.enemy.x) - 170;
+    const [from, to] = hi - lo > 200 ? [lo, hi] : [420, WORLD_WIDTH - 420];
     for (let tries = 0; tries < 30; tries++) {
-      const x = this.rng.int(520, WORLD_WIDTH - 560);
-      const tooClose = [this.player, this.enemy, ...this.extras, ...this.crates.filter((c) => !c.opened)].some((o) => Math.abs(o.x - x) < 140);
-      const y = this.terrain.groundBelow(x, 0);
-      if (tooClose || y === null) continue;
+      const x = this.rng.int(Math.round(from), Math.round(to));
+      const ground = this.terrain.groundBelow(x, 0) ?? WORLD_HEIGHT - 80;
+      // Below the HUD at the top, well above the ground
+      const y = Math.max(220, Math.min(ground - 110, ground - this.rng.range(130, 300)));
+      const tooClose = this.crates.some((c) => !c.opened && Math.hypot(c.x - x, c.y - y) < 150);
+      if (tooClose || y > ground - 100) continue;
       this.crates.push(new Crate(this, x, y));
       return;
     }
@@ -502,18 +549,11 @@ export class StageScene extends ArenaScene {
 
   private updateStatus() {
     const items = [{ icon: 'ui/crystal', text: `${this.stats.crystals}` }];
-    if (this.shield) items.push({ icon: 'fx/fx_shield', text: 'โล่' });
-    if (this.doubleShot) items.push({ icon: 'fx/proj_cannonball', text: 'x2' });
-    if (this.damageMul > 1) items.push({ icon: 'fx/fx_spark', text: '+30%' });
+    if (this.shield > 0) items.push({ icon: 'fx/fx_shield', text: this.shield > 1 ? `โล่ x${this.shield}` : 'โล่' });
+    if (this.extraShots > 0) items.push({ icon: 'fx/proj_cannonball', text: `+${this.extraShots} นัด` });
+    if (this.damageMul > 1) items.push({ icon: 'fx/fx_spark', text: `+${Math.round((this.damageMul - 1) * 100)}%` });
     this.hud.setStatus(items);
     this.syncShield(this.player);
-  }
-
-  update(time: number, delta: number) {
-    super.update(time, delta);
-    if (!Number.isFinite(delta) || delta < 0) return;
-    const dt = Math.min(delta, 50) / 1000;
-    for (const c of this.crates) c.settle(this.terrain, dt);
   }
 
   // ---- End ------------------------------------------------------------------

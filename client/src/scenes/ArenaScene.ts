@@ -107,6 +107,8 @@ interface Playback {
   shooter: Combatant;
   projectile: string;
   sprites: Phaser.GameObjects.Image[];
+  /** Per flight: how far along its path has been reported to onProjectileMove */
+  swept: number[];
   /** Index of the next event to show */
   next: number;
   elapsed: number;
@@ -600,7 +602,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       return img.setScale((40 * fl.size) / img.height);
     });
     return new Promise((resolve) => {
-      this.playback = { timeline, shooter, projectile, sprites, next: 0, elapsed: 0, outcome: { impact: null, hits: [] }, resolve };
+      this.playback = { timeline, shooter, projectile, sprites, swept: timeline.flights.map(() => 0), next: 0, elapsed: 0, outcome: { impact: null, hits: [] }, resolve };
     });
   }
 
@@ -613,6 +615,10 @@ export abstract class ArenaScene extends Phaser.Scene {
       const sprite = pb.sprites[i];
       const k = step - fl.start;
       if (!sprite.active || k < 0) return;
+      // Every bit of path flown since last frame (none skipped, even if frames drop)
+      const upTo = Math.min(k, fl.path.length - 1);
+      for (let j = pb.swept[i] + 1; j <= upTo; j++) this.onProjectileMove(pb.shooter, fl.path[j - 1], fl.path[j]);
+      pb.swept[i] = Math.max(pb.swept[i], upTo);
       if (k >= fl.path.length - 1) {
         sprite.destroy();
         return;
@@ -744,6 +750,9 @@ export abstract class ArenaScene extends Phaser.Scene {
       if (c.hidden) (c as Fighter).setStealth(true, this.viewerOwns(c) ? STEALTH_SELF_ALPHA : 0);
     }
   }
+
+  /** Hook: a projectile flew from a to b (stages collect the crates it passes through) */
+  protected onProjectileMove(_shooter: Combatant, _a: Vec, _b: Vec) {}
 
   /** Hook: change damage before it lands (e.g. shields). Called while the shot is worked out. */
   protected modifyDamage(target: Combatant, damage: number): number {

@@ -147,7 +147,7 @@ function worldStages(p: WorldPlan): StageConfig[] {
   const weapons = WEAPON_CATALOG.filter((x) => x.world === p.world).map((x) => x.id);
   // A little sharper aim in later worlds
   const sharp = 0.03 * (p.world - 1);
-  const common = { world: p.world, unit: p.world, background: w.background, ground: w.ground, crates: 2 };
+  const common = { world: p.world, unit: p.world, background: w.background, ground: w.ground, crates: 3 };
   const late = p.world >= 4;
   return [
     {
