@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { MAX_WIND, type Terrain, type Vec } from '@sciboom/shared';
 import { DEPTH, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH, TEXT_STROKE } from '../config';
 import type { Combatant } from '../game/Combatant';
+import { BAR_FRAMES, FrameBar } from './FrameBar';
 
 const textStyle = (size: number, color = '#ffffff'): Phaser.Types.GameObjects.Text.TextStyle => ({
   fontFamily: FONT_FAMILY,
@@ -14,9 +15,8 @@ const textStyle = (size: number, color = '#ffffff'): Phaser.Types.GameObjects.Te
 
 interface FighterPanel {
   portrait: Phaser.GameObjects.Image;
-  hpFill: Phaser.GameObjects.Rectangle;
+  hpBar: FrameBar;
   hpText: Phaser.GameObjects.Text;
-  hpWidth: number;
 }
 
 const MINIMAP = { x: GAME_WIDTH / 2 - 120, y: 122, w: 240, h: 64 };
@@ -28,10 +28,11 @@ export class Hud {
   private readonly windArrow: Phaser.GameObjects.Image;
   private readonly windText: Phaser.GameObjects.Text;
   private readonly angleText: Phaser.GameObjects.Text;
-  private readonly powerFill: Phaser.GameObjects.Rectangle;
+  private readonly powerBar: FrameBar;
   private readonly powerMarker: Phaser.GameObjects.Triangle;
   private readonly powerArea: { x: number; w: number };
-  private readonly staminaFill: Phaser.GameObjects.Rectangle;
+  private readonly staminaFill: Phaser.GameObjects.Graphics;
+  private readonly staminaY: number;
   private readonly staminaText: Phaser.GameObjects.Text;
   private readonly minimapGround: Phaser.GameObjects.Graphics;
   private readonly minimapDots: Phaser.GameObjects.Graphics;
@@ -69,25 +70,25 @@ export class Hud {
     gauge.setScale(84 / gauge.width);
     this.angleText = scene.add.text(GAME_WIDTH / 2 - 300, barY + 26, '', textStyle(22)).setOrigin(0.5);
 
-    const frame = scene.add.image(GAME_WIDTH / 2 + 10, barY, 'ui/bar_power').setDisplaySize(440, 56);
-    // The bar art has a dark inner slot; draw the fill inside it
-    const innerW = frame.displayWidth * 0.86;
-    const innerH = frame.displayHeight * 0.42;
-    this.powerArea = { x: frame.x - innerW / 2, w: innerW };
-    this.powerFill = scene.add.rectangle(this.powerArea.x, barY, 0, innerH, 0xff7a1a).setOrigin(0, 0.5);
-    this.powerMarker = scene.add.triangle(0, barY - innerH / 2 - 8, 0, 0, 16, 0, 8, 12, 0xffffff).setStrokeStyle(2, 0x1b1d3a);
-    const powerLabel = scene.add.text(frame.x, barY - 42, 'แรง', textStyle(18)).setOrigin(0.5);
+    // Power bar: the fill sits exactly in the frame's inner slot
+    this.powerBar = new FrameBar(scene, GAME_WIDTH / 2 + 10, barY, 440, 56, BAR_FRAMES.power);
+    this.powerArea = { x: this.powerBar.holeX, w: this.powerBar.holeW };
+    this.powerMarker = scene.add.triangle(0, barY - 20, 0, 0, 16, 0, 8, 12, 0xffffff).setStrokeStyle(2, 0x1b1d3a);
+    const powerLabel = scene.add.text(GAME_WIDTH / 2 + 10, barY - 42, 'แรง', textStyle(18)).setOrigin(0.5);
 
     // Stamina for walking and skills (above the move buttons)
     const stY = GAME_HEIGHT - 138;
     const stLabel = scene.add.text(40, stY - 20, 'สตามินา', textStyle(16)).setOrigin(0, 0.5);
     this.staminaText = scene.add.text(230, stY - 20, '', textStyle(16, '#5fd4ff')).setOrigin(1, 0.5);
-    const stBg = scene.add.rectangle(40, stY, 190, 12, 0x1b1d3a, 0.7).setOrigin(0, 0.5).setStrokeStyle(2, 0xffffff, 0.7);
-    this.staminaFill = scene.add.rectangle(42, stY, 186, 8, 0x5fd4ff).setOrigin(0, 0.5);
+    const stBg = scene.add.graphics();
+    stBg.fillStyle(0x1b1d3a, 0.7).fillRoundedRect(40, stY - 7, 190, 14, 7);
+    stBg.lineStyle(2, 0xffffff, 0.7).strokeRoundedRect(40, stY - 7, 190, 14, 7);
+    this.staminaFill = scene.add.graphics();
+    this.staminaY = stY;
 
     for (const o of [
       timerBg, this.timerText, this.windArrow, this.windText, mapBg, this.minimapGround, this.minimapDots,
-      gauge, this.angleText, frame, this.powerFill, this.powerMarker, powerLabel, stLabel, this.staminaText, stBg, this.staminaFill,
+      gauge, this.angleText, ...this.powerBar.objects, this.powerMarker, powerLabel, stLabel, this.staminaText, stBg, this.staminaFill,
     ]) {
       o.setScrollFactor(0).setDepth(DEPTH.hud);
     }
@@ -104,21 +105,19 @@ export class Hud {
     portrait.setScale(Math.min(86 / portrait.height, 84 / portrait.width));
     const name = s.add.text(edge + dir * 92, 14, f.name, textStyle(22)).setOrigin(side === 'left' ? 0 : 1, 0);
 
-    const frame = s.add.image(edge + dir * 222, 68, 'ui/bar_hp').setDisplaySize(252, 40);
-    const hpWidth = frame.displayWidth * 0.86;
-    const hpFill = s.add.rectangle(frame.x - hpWidth / 2, 68, hpWidth, frame.displayHeight * 0.42, 0x4cd964).setOrigin(0, 0.5);
-    const hpText = s.add.text(frame.x, 68, '', textStyle(15)).setOrigin(0.5);
+    // HP bar: the frame keeps its round ends, the fill sits exactly in its inner slot
+    const hpBar = new FrameBar(s, edge + dir * 222, 68, 252, 40, BAR_FRAMES.hp);
+    const hpText = s.add.text(edge + dir * 222, 68, '', textStyle(15)).setOrigin(0.5);
 
-    for (const o of [plate, portrait, name, frame, hpFill, hpText]) o.setScrollFactor(0).setDepth(DEPTH.hud);
-    const panel = { portrait, hpFill, hpText, hpWidth };
+    for (const o of [plate, portrait, name, ...hpBar.objects, hpText]) o.setScrollFactor(0).setDepth(DEPTH.hud);
+    const panel = { portrait, hpBar, hpText };
     this.setHpBar(panel, f);
     return panel;
   }
 
   private setHpBar(p: FighterPanel, f: Combatant) {
     const frac = f.hp / f.maxHp;
-    p.hpFill.width = p.hpWidth * frac;
-    p.hpFill.fillColor = frac > 0.5 ? 0x4cd964 : frac > 0.25 ? 0xffcc00 : 0xff3b30;
+    p.hpBar.setFill(frac, frac > 0.5 ? 0x4cd964 : frac > 0.25 ? 0xffcc00 : 0xff3b30);
     p.hpText.setText(`${f.hp} / ${f.maxHp}`);
   }
 
@@ -174,13 +173,16 @@ export class Hud {
   }
 
   setPower(power: number, last: number | null) {
-    this.powerFill.width = (this.powerArea.w * power) / 100;
+    this.powerBar.setFill(power / 100, 0xff7a1a);
     this.powerMarker.setVisible(last !== null);
     if (last !== null) this.powerMarker.x = this.powerArea.x + (this.powerArea.w * last) / 100 - 8;
   }
 
   setStamina(frac: number, value?: number) {
-    this.staminaFill.width = 186 * Math.max(0, Math.min(1, frac));
+    // Rounded ends like the frame (the radius shrinks for a nearly empty bar)
+    const w = 184 * Math.max(0, Math.min(1, frac));
+    this.staminaFill.clear();
+    if (w > 0.5) this.staminaFill.fillStyle(0x5fd4ff, 1).fillRoundedRect(43, this.staminaY - 4, w, 8, Math.min(4, w / 2));
     this.staminaText.setText(value === undefined ? '' : String(Math.floor(value)));
   }
 

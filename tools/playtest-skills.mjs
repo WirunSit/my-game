@@ -133,7 +133,7 @@ await page.keyboard.press('1');
 await wait(200);
 assert.deepEqual(await armed(), ['plane'], '+1 does not go with the plane');
 await shot('6-plane-armed');
-await fire(800);
+await fire(1150); // about power 52 (charging takes ~2.2 s to 100)
 await page.waitForFunction(() => window.game.scene.getScene('Stage').phase !== 'flying', null, { timeout: 30_000 });
 await wait(300);
 const x1 = await scene('s.player.x');
