@@ -624,6 +624,78 @@
   "height": 335
  },
  {
+  "key": "ui/skill_double",
+  "path": "assets/ui/skill_double.png",
+  "width": 160,
+  "height": 157
+ },
+ {
+  "key": "ui/skill_triple",
+  "path": "assets/ui/skill_triple.png",
+  "width": 160,
+  "height": 158
+ },
+ {
+  "key": "ui/skill_heal",
+  "path": "assets/ui/skill_heal.png",
+  "width": 160,
+  "height": 157
+ },
+ {
+  "key": "ui/skill_plane",
+  "path": "assets/ui/skill_plane.png",
+  "width": 160,
+  "height": 158
+ },
+ {
+  "key": "ui/skill_stealth",
+  "path": "assets/ui/skill_stealth.png",
+  "width": 160,
+  "height": 157
+ },
+ {
+  "key": "ui/skill_special",
+  "path": "assets/ui/skill_special.png",
+  "width": 160,
+  "height": 159
+ },
+ {
+  "key": "ui/skill_ultimate",
+  "path": "assets/ui/skill_ultimate.png",
+  "width": 160,
+  "height": 158
+ },
+ {
+  "key": "ui/skill_lock",
+  "path": "assets/ui/skill_lock.png",
+  "width": 160,
+  "height": 159
+ },
+ {
+  "key": "fx/proj_paper_plane",
+  "path": "assets/fx/proj_paper_plane.png",
+  "width": 497,
+  "height": 231
+ },
+ {
+  "key": "fx/roots",
+  "path": "assets/fx/roots.png",
+  "width": 342,
+  "height": 512
+ },
+ {
+  "key": "fx/warning_circle",
+  "path": "assets/fx/warning_circle.png",
+  "width": 465,
+  "height": 361
+ },
+ {
+  "key": "fx/lava_wave",
+  "path": "assets/fx/lava_wave.png",
+  "width": 512,
+  "height": 147
+ },
+ {
   "key": "backgrounds/world1_lab",
   "path": "assets/backgrounds/world1_lab.jpg",
   "width": 1960,

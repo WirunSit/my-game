@@ -253,7 +253,8 @@ export class StageScene extends ArenaScene {
     const y = this.terrain.groundBelow(x, this.player.y - 30) ?? this.player.y;
     let g: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
     if (this.textures.exists('fx/warning_circle')) {
-      g = this.add.image(x, y, 'fx/warning_circle').setDepth(DEPTH.fx);
+      // The ring sits in the lower part of the picture (the "!" is above it): put the ring on the ground
+      g = this.add.image(x, y, 'fx/warning_circle').setOrigin(0.5, 0.76).setDepth(DEPTH.fx);
       g.setScale(130 / g.width);
     } else {
       const d = this.add.graphics().setDepth(DEPTH.fx);
