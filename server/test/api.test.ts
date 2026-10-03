@@ -155,7 +155,7 @@ test('question bank: seeded from content, editable, disable hides it from the ga
   assert.ok(!after.data.units[0].questions.some((x: any) => x.id === 'u1-001'));
 
   const added = await call('POST', '/api/teacher/questions', { unit: 2, topic: 'เซลล์', difficulty: 1, question: 'ข้อใดเป็นเซลล์พืช', choices: ['ก', 'ข', 'ค', 'ง'], answer: 2, explanation: 'เพราะ...' }, teacherToken);
-  assert.match(added.data.id, /^u2-\d{3}$/);
+  assert.match(added.data.id, /^u2-k\d{3}$/, 'teacher questions have their own numbering');
   assert.equal((await call('POST', '/api/teacher/questions', { unit: 2, question: 'x', choices: ['a', 'b'], answer: 0 }, teacherToken)).status, 400);
 });
 
@@ -180,4 +180,26 @@ test('deleting a classroom removes its students and logs them out', async () => 
   const token = (await call('POST', '/api/student/login', { classCode, number: 2, pin: s2.pin })).data.token;
   assert.equal((await call('DELETE', `/api/teacher/classrooms/${classId}`, undefined, teacherToken)).status, 200);
   assert.equal((await call('GET', '/api/student/me', undefined, token)).status, 401);
+});
+
+test('questions added to the project later reach an existing database, without undoing teachers’ edits', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  if (process.env.TEST_DB) return; // file databases only (the PGlite run is in memory)
+  const dir = mkdtempSync(join(tmpdir(), 'sciboom-'));
+  const file = join(dir, 'test.db');
+  try {
+    const first = await Store.open(file);
+    await first.db.run('UPDATE questions SET question = ? WHERE id = ?', ['คำถามที่ครูแก้แล้ว', 'u1-001']);
+    await first.db.run('DELETE FROM questions WHERE id = ?', ['u1-050']); // as if u1-050 were new in the project
+    await first.close();
+    const again = await Store.open(file);
+    const { questions } = await again.bank();
+    assert.ok(questions.some((q) => q.id === 'u1-050'), 'the missing question is added');
+    assert.equal(questions.find((q) => q.id === 'u1-001')!.question, 'คำถามที่ครูแก้แล้ว', 'the teacher’s edit stays');
+    await again.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

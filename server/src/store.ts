@@ -386,14 +386,21 @@ export class Store {
 
   // ---- Question bank -------------------------------------------------------------------------
 
-  /** First start: copy the AI-drafted questions from content/questions into the database */
+  /**
+   * Every start: copy questions from content/questions that the database doesn't
+   * have yet (new questions added to the project reach existing websites too).
+   * Questions already in the database are left alone, so teachers' edits stay.
+   */
   private async seedQuestions() {
-    const have = await this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM questions');
     const units = loadQuestionUnits();
+    const have = new Set((await this.db.all<{ id: string }>('SELECT id FROM questions')).map((r) => r.id));
     await this.db.tx(async (db) => {
       for (const u of units) await db.run('INSERT INTO units (unit, title) VALUES (?, ?) ON CONFLICT DO NOTHING', [u.unit, u.title]);
-      if (Number(have?.n ?? 0) > 0) return;
-      for (const u of units) for (const q of u.questions) await this.writeQuestion(db, { ...q, unit: u.unit, reviewed: !!q.reviewed, disabled: false });
+      for (const u of units) {
+        for (const q of u.questions) {
+          if (!have.has(q.id)) await this.writeQuestion(db, { ...q, unit: u.unit, reviewed: !!q.reviewed, disabled: false });
+        }
+      }
     });
   }
 
@@ -458,10 +465,12 @@ export class Store {
     return q.id;
   }
 
+  /** Teachers' questions get their own numbering (u2-k001...), so they never clash with questions added to the project later */
   private async nextQuestionId(unit: number): Promise<string> {
-    const rows = await this.db.all<{ id: string }>('SELECT id FROM questions WHERE id LIKE ?', [`u${unit}-%`]);
-    const max = rows.reduce((m, r) => Math.max(m, Number(r.id.split('-')[1]) || 0), 0);
-    return `u${unit}-${String(max + 1).padStart(3, '0')}`;
+    const prefix = `u${unit}-k`;
+    const rows = await this.db.all<{ id: string }>('SELECT id FROM questions WHERE id LIKE ?', [`${prefix}%`]);
+    const max = rows.reduce((m, r) => Math.max(m, Number(r.id.slice(prefix.length)) || 0), 0);
+    return `${prefix}${String(max + 1).padStart(3, '0')}`;
   }
 
   async importCsv(text: string): Promise<{ added: number; updated: number; errors: string[] }> {

@@ -107,6 +107,45 @@ test('difficulty filter keeps only easy questions', () => {
   for (let i = 0; i < 20; i++) assert.equal(deck.next().question.difficulty, 1);
 });
 
+test('the deck deals questions the student has not seen before first, then the oldest ones', () => {
+  const qs = unit1.questions as Question[];
+  // The student saw every question except the last 5; the first one longest ago
+  const lastSeen = new Map(qs.slice(0, -5).map((q, i) => [q.id, 1_000 + i]));
+  const deck = new QuizDeck(qs, new Rng(4), 3, { lastSeen });
+  const unseen = new Set(qs.slice(-5).map((q) => q.id));
+  const first5 = Array.from({ length: 5 }, () => deck.next().question.id);
+  assert.deepEqual(new Set(first5), unseen);
+  assert.equal(deck.next().question.id, qs[0].id, 'then the one seen longest ago');
+});
+
+test('every question in content/questions is well-formed, and each unit has plenty at every difficulty', () => {
+  const ids = new Set<string>();
+  const texts = new Set<string>();
+  for (const file of ['unit1_pure_substances', 'unit2_cells', 'unit3_plants', 'unit4_heat', 'unit5_weather']) {
+    const unit = JSON.parse(readFileSync(new URL(`../../content/questions/${file}.json`, import.meta.url), 'utf8')) as { unit: number; questions: Question[] };
+    for (const q of unit.questions) {
+      const where = `${file} ${q.id}`;
+      assert.ok(q.id.startsWith(`u${unit.unit}-`), `${where}: id should start with u${unit.unit}-`);
+      assert.ok(!ids.has(q.id), `${where}: duplicate id`);
+      ids.add(q.id);
+      assert.ok(!texts.has(q.question), `${where}: same question twice`);
+      texts.add(q.question);
+      assert.equal(q.choices.length, 4, `${where}: needs 4 choices`);
+      assert.equal(new Set(q.choices).size, 4, `${where}: choices must differ`);
+      assert.ok(q.choices.every((c) => c.trim().length > 0), `${where}: empty choice`);
+      assert.ok(Number.isInteger(q.answer) && q.answer >= 0 && q.answer <= 3, `${where}: answer must be 0-3`);
+      assert.ok([1, 2, 3].includes(q.difficulty), `${where}: difficulty 1-3`);
+      assert.ok(q.explanation.trim().length > 10, `${where}: needs an explanation`);
+      assert.ok(q.topic.trim().length > 0, `${where}: needs a topic`);
+    }
+    assert.ok(unit.questions.length >= 50, `${file}: at least 50 questions (has ${unit.questions.length})`);
+    for (const d of [1, 2, 3]) {
+      const n = unit.questions.filter((q) => q.difficulty === d).length;
+      assert.ok(n >= 10, `${file}: at least 10 questions of difficulty ${d} (has ${n})`);
+    }
+  }
+});
+
 // ---- AI --------------------------------------------------------------------
 test('a perfect-skill AI lands close to its target', () => {
   const t = Terrain.generate(11);

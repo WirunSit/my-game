@@ -59,14 +59,14 @@ async function startMatch(lobby: Lobby, quizDuel = false) {
 }
 
 /** Find the power that drops a shell from `me` onto `them` on this map */
-function aimPower(map: number[], me: { x: number; y: number }, them: { x: number; y: number }, facing: 1 | -1) {
+function aimPower(map: number[], me: { x: number; y: number }, them: { x: number; y: number }, facing: 1 | -1, wind = 0) {
   const t = Terrain.decode(map);
   let best = 50;
   let bestD = Infinity;
   const target = { id: 'them', x: them.x, y: them.y };
   for (let power = 20; power <= 100; power += 0.5) {
     const m = fighterMuzzle(me.x, me.y, facing, 45);
-    const r = simulateShot({ ...m, angleDeg: 45, facing, power, wind: 0 }, t, [target], 'me');
+    const r = simulateShot({ ...m, angleDeg: 45, facing, power, wind }, t, [target], 'me');
     const d = r.impact ? Math.hypot(r.impact.x - them.x, r.impact.y - (them.y - BODY_OFFSET_Y)) : Infinity;
     if (d < bestD) {
       bestD = d;
@@ -99,9 +99,9 @@ test('a wrong code is refused', async () => {
 test('shots are worked out by the server and sent to both players; turns alternate', async () => {
   const lobby = fastLobby();
   const { a, b, sa } = await startMatch(lobby);
-  await a.next('turn');
+  const { wind } = await a.next('turn');
   const [pa, pb] = sa.players;
-  const power = aimPower(sa.map, pa, pb, 1);
+  const power = aimPower(sa.map, pa, pb, 1, wind);
   await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power, armed: null });
   const shotA = await a.next('shot');
   const shotB = await b.next('shot');
@@ -125,12 +125,12 @@ test('walking further than allowed is cut short; moves are relayed to the other 
 test('skills: heal is refused at full health, double shot fires twice, uses are counted', async () => {
   const lobby = fastLobby();
   const { a, b, sa } = await startMatch(lobby);
-  await a.next('turn');
+  const { wind } = await a.next('turn');
   await a.send({ t: 'skill', slot: 'heal' });
   await tick();
   assert.equal(b.inbox.some((m) => m.t === 'skillUsed'), false, 'heal refused at full health');
   const [pa, pb] = sa.players;
-  await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power: aimPower(sa.map, pa, pb, 1), armed: 'double' });
+  await a.send({ t: 'fire', x: pa.x, y: pa.y, facing: 1, angle: 45, power: aimPower(sa.map, pa, pb, 1, wind), armed: 'double' });
   const shot = await a.next('shot');
   assert.equal(shot.timelines.length, 2);
   assert.equal(shot.skills!.uses.double, 1);
@@ -175,7 +175,7 @@ test('a full match ends with a winner, and both can ask for a rematch', async ()
     await b.next('turn');
     const me = t.actor === a.id ? 0 : 1;
     const facing = me === 0 ? 1 : -1;
-    await players[me].send({ t: 'fire', x: pos[me].x, y: pos[me].y, facing, angle: 45, power: aimPower(map, pos[me], pos[1 - me], facing), armed: null });
+    await players[me].send({ t: 'fire', x: pos[me].x, y: pos[me].y, facing, angle: 45, power: aimPower(map, pos[me], pos[1 - me], facing, t.wind), armed: null });
     const shot = await a.next('shot');
     await b.next('shot');
     pos = [a.id, b.id].map((id) => shot.units.find((u) => u.id === id)!);

@@ -122,7 +122,8 @@ for (let i = 0; i < 4; i++) {
 await until(() => window.game.scene.getScene('Stage').phase === 'aiming', 60000);
 await stage(() => {
   const s = window.game.scene.getScene('Stage');
-  s.enemy.takeDamage(1e6);
+  // Every enemy: Mixtron may already have split into two bodies, and both must fall
+  for (const c of s.combatants) if (c !== s.player && c.alive) c.takeDamage(1e6);
   s.hud.refreshHp();
 });
 await page.keyboard.down('Space');

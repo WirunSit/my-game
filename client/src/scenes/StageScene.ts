@@ -105,7 +105,10 @@ export class StageScene extends ArenaScene {
     this.setupHud('WorldMap');
     this.enableSkills(this.player, equippedWeapon(save).rarity >= SPECIAL_MIN_RARITY);
 
-    this.deck = new QuizDeck(UNITS[this.stage.unit].questions, this.rng, this.stage.maxDifficulty);
+    // Questions this student saw recently come last (answer history in the save)
+    const lastSeen = new Map<string, number>();
+    for (const a of save.answers) lastSeen.set(a.id, Math.max(lastSeen.get(a.id) ?? 0, a.at));
+    this.deck = new QuizDeck(UNITS[this.stage.unit].questions, this.rng, this.stage.maxDifficulty, { lastSeen });
     for (let i = 0; i < this.stage.crates; i++) this.spawnCrate();
     if (this.stage.gimmick === 'lava') this.drawLava(WORLD_HEIGHT - 70);
     this.updateStatus();
