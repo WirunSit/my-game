@@ -18,7 +18,7 @@ export class Terrain {
     this.mask = new Uint8Array(width * height);
   }
 
-  /** Rolling hills with cliffs at both edges, shaped by the seed */
+  /** Rolling hills from edge to edge, shaped by the seed (blasts can still dig holes to fall through) */
   static generate(seed: number, width = WORLD_WIDTH, height = WORLD_HEIGHT): Terrain {
     const t = new Terrain(width, height);
     const rng = new Rng(seed);
@@ -28,8 +28,7 @@ export class Terrain {
       phase: rng.range(0, Math.PI * 2),
     }));
     const base = height * 0.68;
-    const edge = 70; // empty columns at each side: walk off and you fall
-    for (let x = edge; x < width - edge; x++) {
+    for (let x = 0; x < width; x++) {
       let y = base;
       for (const w of waves) y += Math.sin(x * w.freq + w.phase) * w.amp;
       // A raised hill in the middle so straight shots are blocked

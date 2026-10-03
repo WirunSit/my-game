@@ -11,10 +11,10 @@ test('same seed makes the same map', () => {
   assert.notDeepEqual(a.mask, c.mask);
 });
 
-test('map edges are bottomless cliffs, the middle has ground', () => {
+test('the ground reaches both edges of the map (it fills the screen)', () => {
   const t = Terrain.generate(1);
-  assert.equal(t.groundBelow(10, 0), null);
-  assert.equal(t.groundBelow(WORLD_WIDTH - 10, 0), null);
+  assert.notEqual(t.groundBelow(0, 0), null);
+  assert.notEqual(t.groundBelow(WORLD_WIDTH - 1, 0), null);
   assert.notEqual(t.groundBelow(WORLD_WIDTH / 2, 0), null);
 });
 

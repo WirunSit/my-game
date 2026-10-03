@@ -68,6 +68,12 @@ const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 // power/s while holding fire (0→100 in ~2.2 s, like DDTank); at 100 the bar runs back down, and so on until you let go
 const CHARGE_SPEED = 45;
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
+/** Furthest the camera zooms out: the whole map width fits on screen */
+const MIN_ZOOM = GAME_WIDTH / WORLD_WIDTH;
+/** Space kept around the aim guide when zooming out to fit it (px on screen) */
+const ZOOM_MARGIN_X = 110;
+/** The top of the screen is covered by the HUD (health bars, timer, mini-map) */
+const HUD_TOP = 130;
 /** A camouflaged fighter, as seen by its own player (the other side sees nothing at all) */
 const STEALTH_SELF_ALPHA = 0.22;
 
@@ -157,6 +163,17 @@ export abstract class ArenaScene extends Phaser.Scene {
   private guideKey = '';
   private panning = false;
   private camTarget: Combatant | null = null;
+  /**
+   * Three cameras, drawn in this order: the background art (never zooms), the
+   * battlefield (the main camera: zooms out to fit long shots) and the HUD
+   * (never zooms). Every object is sorted onto one of them before each frame.
+   */
+  private bgCam!: Phaser.Cameras.Scene2D.Camera;
+  private uiCam!: Phaser.Cameras.Scene2D.Camera;
+  private camSorted = new WeakSet<Phaser.GameObjects.GameObject>();
+  private zoomGoal = 1;
+  /** Where the aim guide reaches (world), to zoom out until it all fits */
+  private guideBox: { minX: number; maxX: number; minY: number } | null = null;
   /** Sounds that follow the game while they play */
   private chargeHum: Held | null = null;
   private flightSound: Held | null = null;
@@ -203,7 +220,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setDepth(DEPTH.fx)
       .setVisible(false);
     this.guide = this.add.graphics().setDepth(DEPTH.projectile);
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.setupCameras();
     this.setupCameraDrag();
     return terrain;
   }
@@ -265,7 +282,8 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** Stereo position of a sound made at world x (left of the screen = left speaker) */
   protected panAt(x: number): number {
-    return panFor(x - this.cameras.main.scrollX, GAME_WIDTH);
+    const view = this.cameras.main.worldView;
+    return panFor(x - view.x, view.width || GAME_WIDTH);
   }
 
   /** Hook: leaving the match from the ☰ button (online games tell the server first) */
@@ -381,6 +399,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.skillBar.setVisible(false);
     this.guide.clear();
     this.guideKey = '';
+    this.guideBox = null;
     if (power !== null && this.human) this.human.lastPower = power;
     this.human = null;
     this.phase = 'idle';
@@ -634,7 +653,7 @@ export abstract class ArenaScene extends Phaser.Scene {
 
     // Camera and sky marker follow the first projectile still in the air
     const live = lead as Phaser.GameObjects.Image | null;
-    this.skyMarker.setVisible(!!live && live.y < 0);
+    if (!live) this.skyMarker.setVisible(false);
     // The air rushing past gets louder and higher the faster the shell goes
     if (live) {
       if (this.flightPrev) this.flightSound?.set(Math.hypot(live.x - this.flightPrev.x, live.y - this.flightPrev.y) / (dt * 1400));
@@ -645,7 +664,10 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (live) {
       const cam = this.cameras.main;
       cam.scrollX += (live.x - GAME_WIDTH / 2 - cam.scrollX) * 0.15;
-      if (live.y < 0) this.skyMarker.x = live.x;
+      // Above the top of the view: a little arrow shows where it is
+      const view = cam.worldView;
+      this.skyMarker.setVisible(live.y < view.y);
+      this.skyMarker.setPosition(live.x, view.y + 14 / cam.zoom).setScale(1 / cam.zoom);
     }
     if (step >= pb.timeline.end && pb.next >= events.length) {
       pb.sprites.forEach((s) => s.destroy());
@@ -902,17 +924,86 @@ export abstract class ArenaScene extends Phaser.Scene {
     if ((this.phase === 'aiming' || this.phase === 'charging') && this.human) {
       const f = this.human;
       this.drawGuide(f);
-      this.skillBar.fadeIfCovering(f.x - this.cameras.main.scrollX, f.y - f.height, f.y);
+      const cam = this.cameras.main;
+      const view = cam.worldView;
+      this.skillBar.fadeIfCovering((f.x - view.x) * cam.zoom, (f.y - f.height - view.y) * cam.zoom, (f.y - view.y) * cam.zoom);
     }
     if (this.phase === 'flying' && this.playback) this.updatePlayback(dt);
 
     const cam = this.cameras.main;
-    if (this.camTarget) {
-      const goal = this.camTarget.x - GAME_WIDTH / 2;
-      cam.scrollX += (goal - cam.scrollX) * Math.min(1, dt * 5);
-    }
+    const fit = this.fitGuide();
+    // While charging the guide grows and shrinks with the power: only ever zoom further out then, never back in
+    if (fit) this.zoomGoal = this.phase === 'charging' ? Math.min(this.zoomGoal, fit.zoom) : fit.zoom;
+    else if (this.phase !== 'flying') this.zoomGoal = 1; // a shot keeps the zoom it was fired with
+    cam.setZoom(cam.zoom + (this.zoomGoal - cam.zoom) * Math.min(1, dt * 3));
+    if (Math.abs(cam.zoom - this.zoomGoal) < 0.002) cam.setZoom(this.zoomGoal);
+    // The ground stays at the bottom of the screen; zooming out shows more sky
+    cam.scrollY = WORLD_HEIGHT - GAME_HEIGHT / 2 - GAME_HEIGHT / (2 * cam.zoom);
+    const centre = fit && !this.panning && this.camTarget === this.human ? fit.x : this.camTarget?.x;
+    if (centre !== undefined) cam.scrollX += (centre - GAME_WIDTH / 2 - cam.scrollX) * Math.min(1, dt * 5);
+    // The background art moves (and never zooms) with the middle of the view
+    this.bgCam.scrollX = Phaser.Math.Clamp(cam.scrollX, 0, WORLD_WIDTH - GAME_WIDTH);
     const flying = this.playback?.sprites.find((s) => s.active && s.visible) ?? null;
-    this.hud.updateMinimap(this.terrain.height, cam.scrollX, GAME_WIDTH, flying);
+    this.hud.updateMinimap(this.terrain.height, cam.worldView.x, cam.worldView.width || GAME_WIDTH, flying);
+  }
+
+  /**
+   * While aiming: the zoom (and the middle of the view) that fits the shooter
+   * and the whole aim guide on screen, below the HUD. Null when not aiming.
+   */
+  private fitGuide(): { zoom: number; x: number } | null {
+    const f = this.human;
+    const b = this.guideBox;
+    if (!f || !b || (this.phase !== 'aiming' && this.phase !== 'charging')) return null;
+    const minX = Math.max(0, Math.min(b.minX, f.x - 60));
+    const maxX = Math.min(WORLD_WIDTH, Math.max(b.maxX, f.x + 60));
+    const minY = Math.min(b.minY, f.y - f.height - 40);
+    const zx = GAME_WIDTH / (maxX - minX + 2 * ZOOM_MARGIN_X);
+    const zy = (GAME_HEIGHT - HUD_TOP) / Math.max(1, WORLD_HEIGHT - minY);
+    const zoom = Phaser.Math.Clamp(Math.min(1, zx, zy), MIN_ZOOM, 1);
+    return { zoom, x: zoom < 1 ? (minX + maxX) / 2 : f.x };
+  }
+
+  /** Background, battlefield and HUD cameras (see bgCam) */
+  private setupCameras() {
+    const main = this.cameras.main;
+    // Room above the map for the sky when zoomed all the way out
+    const viewH = GAME_HEIGHT / MIN_ZOOM;
+    main.setBounds(0, WORLD_HEIGHT - viewH, WORLD_WIDTH, viewH);
+    main.setZoom(1);
+    main.scrollY = 0;
+    this.zoomGoal = 1;
+    this.guideBox = null;
+    this.camSorted = new WeakSet();
+    this.bgCam = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT, false, 'background');
+    this.uiCam = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT, false, 'hud');
+    // Draw the background first
+    const list = this.cameras.cameras;
+    list.splice(list.indexOf(this.bgCam), 1);
+    list.unshift(this.bgCam);
+    const sort = () => this.sortForCameras();
+    this.events.on(Phaser.Scenes.Events.PRE_RENDER, sort);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.events.off(Phaser.Scenes.Events.PRE_RENDER, sort));
+  }
+
+  /** Put each new object on its camera: background art, HUD (fixed to the screen), or the battlefield */
+  private sortForCameras() {
+    const main = this.cameras.main;
+    for (const o of this.children.list) {
+      if (this.camSorted.has(o)) continue;
+      this.camSorted.add(o);
+      const { depth = 0, scrollFactorX = 1 } = o as unknown as { depth?: number; scrollFactorX?: number };
+      if (depth <= DEPTH.background) {
+        main.ignore(o);
+        this.uiCam.ignore(o);
+      } else if (scrollFactorX === 0) {
+        main.ignore(o);
+        this.bgCam.ignore(o);
+      } else {
+        this.bgCam.ignore(o);
+        this.uiCam.ignore(o);
+      }
+    }
   }
 
   /** Hook: the human moved, turned or aimed (online games tell the other player) */
@@ -1010,6 +1101,10 @@ export abstract class ArenaScene extends Phaser.Scene {
     const shot = fly(launchState(input), flightOptions(mode, special, this.wind), this.terrain, [], f.id);
     const length = mode === 'ultimate' ? 4000 : aimGuideLength(this.assistLevel);
     const path = pathPrefix(shot.path, length);
+    this.guideBox = path.reduce(
+      (b, p) => ({ minX: Math.min(b.minX, p.x), maxX: Math.max(b.maxX, p.x), minY: Math.min(b.minY, p.y) }),
+      { minX: m.x, maxX: m.x, minY: m.y },
+    );
     const g = this.guide;
     g.clear();
     // One dot every GUIDE_DOT_GAP px along the curve, fading towards the end
@@ -1042,7 +1137,7 @@ export abstract class ArenaScene extends Phaser.Scene {
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!this.panning || !p.isDown) return;
-      this.cameras.main.scrollX -= p.x - lastX;
+      this.cameras.main.scrollX -= (p.x - lastX) / this.cameras.main.zoom;
       lastX = p.x;
     });
     this.input.on('pointerup', () => (this.panning = false));
