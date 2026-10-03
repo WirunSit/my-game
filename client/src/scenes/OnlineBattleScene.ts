@@ -112,12 +112,7 @@ export class OnlineBattleScene extends ArenaScene {
         const f = this.fighters.get(msg.id)!;
         // Our own skill was already taken here when we tapped it (with our walking so far); keep that
         if (f !== this.me) this.applySkills(msg.skills);
-        if (msg.slot === 'stealth' && f !== this.me) {
-          f.setStealth(true, 0.06);
-          this.hud.banner(`${f.name} พรางตัว!`, '#bfe8ff');
-        } else {
-          this.showInstantSkill(f, msg.slot);
-        }
+        this.showInstantSkill(f, msg.slot);
         f.hp = msg.hp;
         this.hud.refreshHp();
         return;
@@ -248,6 +243,11 @@ export class OnlineBattleScene extends ArenaScene {
   }
 
   // ---- Hooks from ArenaScene ------------------------------------------------------------
+
+  /** We only ever see our own camouflaged fighter */
+  protected viewerOwns(c: Combatant): boolean {
+    return c === this.me;
+  }
 
   /** The server already started our turn; just clear what we picked last time */
   protected beginSkillTurn(sk: SkillState) {

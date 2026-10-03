@@ -87,6 +87,10 @@ await shot(b, '5-b-turn');
 // B camouflages (key 0), then shoots back with three shells and +1 (keys 3, 1)
 await b.keyboard.press('0');
 await a.waitForFunction(() => window.game.scene.getScene('Online').them.hidden === true, null, { timeout: 10_000 });
+await a.waitForTimeout(600);
+assert.equal(await online(a, 's.them.root.alpha'), 0, 'A cannot see B at all');
+assert.equal(await online(a, 's.hud.showOnMap(s.them)'), false, 'B is not on A’s mini-map');
+assert.ok((await online(b, 's.me.root.alpha')) > 0, 'B still sees themselves faintly');
 await shot(a, '6-a-sees-camouflage');
 await myTurn(b); // still B's turn
 await b.keyboard.press('3');

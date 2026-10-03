@@ -67,6 +67,8 @@ const WALK_SPEED = 110; // px/s
 const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 const CHARGE_SPEED = 65; // power/s while holding fire (0→100 in ~1.5 s)
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
+/** A camouflaged fighter, as seen by its own player (the other side sees nothing at all) */
+const STEALTH_SELF_ALPHA = 0.22;
 
 /** Why a skill button did nothing */
 const BLOCKER_TEXT: Record<SkillBlocker, string> = {
@@ -199,6 +201,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   protected setupHud(menuScene = 'Menu') {
     // The HUD shows the two sides that exist now; extra enemies later don't get a panel
     this.hud = new Hud(this, [...this.combatants], WORLD_WIDTH);
+    // A camouflaged fighter is not on the other side's mini-map either
+    this.hud.showOnMap = (c) => !c.hidden || this.viewerOwns(c);
     this.hud.drawMinimap(this.terrain);
     this.controls = new Controls(this);
     this.controls.onFireDown = () => {
@@ -282,7 +286,10 @@ export abstract class ArenaScene extends Phaser.Scene {
   /** Things that happen before anyone acts: camouflage wears off, fire burns, cooldowns tick */
   protected async startOfTurn(actor: Combatant) {
     this.newGaugeTurn();
+    this.turnActor = actor;
+    // Camouflage lasts until its owner's next turn
     if (actor.hidden) (actor as Fighter).setStealth(false);
+    this.refreshStealthView();
     this.endShield(actor);
     const unit = this.unitOf(actor);
     const dmg = tickBurn(unit);
@@ -461,8 +468,8 @@ export abstract class ArenaScene extends Phaser.Scene {
       this.hud.banner(`${f === this.human ? '' : `${f.name} `}ใช้โล่!`, '#7dd3ff');
     } else {
       sfx.skill();
-      f.setStealth(true);
-      this.hud.banner('พรางตัว!', '#bfe8ff');
+      f.setStealth(true, this.viewerOwns(f) ? STEALTH_SELF_ALPHA : 0);
+      this.hud.banner(`${this.viewerOwns(f) ? '' : `${f.name} `}พรางตัว!`, '#bfe8ff');
     }
     if (f === this.human) this.refreshSkills();
   }
@@ -642,6 +649,11 @@ export abstract class ArenaScene extends Phaser.Scene {
         if (!this.gaugeHurtGiven.has(c)) this.addGauge(c, GAUGE_HURT);
         this.gaugeHurtGiven.add(c);
       }
+      // A hit gives a camouflaged fighter away
+      if (c !== pb.shooter && c.hidden && h.damage > 0) {
+        (c as Fighter).setStealth(false);
+        this.floatText(c.x, c.y - c.height - 110, 'เจอตัวแล้ว!', '#bfe8ff');
+      }
       if (h.burn) {
         this.burns.set(c, BURN_TURNS);
         this.floatText(c.x, c.y - c.height - 80, 'ติดไฟ!', '#ff8844');
@@ -652,6 +664,25 @@ export abstract class ArenaScene extends Phaser.Scene {
     if (hits.some((h) => h.direct)) this.hud.banner('โดนเต็ม ๆ!', '#ffdd33');
     this.hud.refreshHp();
     this.onExplosion(at, radius, pb.shooter);
+  }
+
+  /**
+   * Whether the person looking at the screen right now plays this fighter, so
+   * may see it while camouflaged. Stages: the only human is the player. Other
+   * modes decide for themselves (same device: whoever's turn it is; online: us).
+   */
+  protected viewerOwns(_c: Combatant): boolean {
+    return true;
+  }
+
+  /** Whose turn it is (set at the start of each turn) */
+  protected turnActor: Combatant | null = null;
+
+  /** Camouflaged fighters: faint for their own player, invisible to everyone else */
+  protected refreshStealthView() {
+    for (const c of this.combatants) {
+      if (c.hidden) (c as Fighter).setStealth(true, this.viewerOwns(c) ? STEALTH_SELF_ALPHA : 0);
+    }
   }
 
   /** Hook: change damage before it lands (e.g. shields). Called while the shot is worked out. */

@@ -36,7 +36,7 @@ export const ITEM_SKILLS: Record<ItemSkill, ItemSkillDef> = {
   shield: { name: 'โล่', cost: 35, kind: 'instant', desc: 'โดนยิงเจ็บแค่ครึ่งเดียว จนถึงตาถัดไปของเรา' },
   heal: { name: 'ฟื้นพลัง', cost: 60, uses: 2, kind: 'instant', desc: 'ฟื้นพลังชีวิต +300 (ใช้ได้ 2 ครั้งต่อเกม)' },
   plane: { name: 'จรวดกระดาษ', cost: 60, kind: 'shot', desc: 'ตกตรงไหนย้ายไปตรงนั้น ใช้คู่กับสกิลยิงอื่นไม่ได้ (โดนลมมาก)' },
-  stealth: { name: 'พรางตัว', cost: 40, uses: 2, kind: 'instant', desc: 'หายตัวจนถึงตาถัดไปของเรา ศัตรูเล็งยาก (ใช้ได้ 2 ครั้งต่อเกม)' },
+  stealth: { name: 'พรางตัว', cost: 40, uses: 2, kind: 'instant', desc: 'อีกฝั่งมองไม่เห็นเรา จนถึงตาถัดไปของเราหรือจนกว่าจะโดนยิง (2 ครั้งต่อเกม)' },
 };
 
 export const ITEM_SKILL_ORDER: ItemSkill[] = ['plus1', 'plus2', 'triple', 'power', 'shield', 'heal', 'plane', 'stealth'];

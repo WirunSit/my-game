@@ -39,6 +39,11 @@ export class BattleScene extends ArenaScene {
     await this.wait(900);
   }
 
+  /** One screen for both players: a camouflaged player is hidden while the other one plays */
+  protected viewerOwns(c: Combatant): boolean {
+    return c === this.turnActor;
+  }
+
   protected onMatchEnd(winner: Combatant | null) {
     sfx.win();
     if (winner) {

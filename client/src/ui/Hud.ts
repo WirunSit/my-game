@@ -38,6 +38,8 @@ export class Hud {
   private readonly mapScale: number;
   private statusItems: Phaser.GameObjects.GameObject[] = [];
   private lastBanner?: Phaser.GameObjects.Text;
+  /** Whether a fighter gets a dot on the mini-map (camouflage hides it from the other side) */
+  showOnMap: (c: Combatant) => boolean = () => true;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -200,7 +202,7 @@ export class Hud {
     g.clear();
     g.lineStyle(2, 0xffffff, 0.8).strokeRect(MINIMAP.x + viewX * this.mapScale, MINIMAP.y, viewW * this.mapScale, MINIMAP.h);
     for (const f of this.fighters) {
-      if (!f.alive) continue;
+      if (!f.alive || !this.showOnMap(f)) continue;
       g.fillStyle(f.color, 1).fillCircle(MINIMAP.x + f.x * this.mapScale, MINIMAP.y + Math.max(0, f.y - 30) * sy, 4);
     }
     if (projectile) {
