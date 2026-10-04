@@ -14,12 +14,16 @@ import type { Question } from '@sciboom/shared';
 import { createApi } from './api';
 import { ROOT } from './content';
 import { Lobby } from './lobby';
+import { explainDbError } from './dbHelp';
 import { Store } from './store';
 
 const PORT = Number(process.env.PORT ?? 8081);
 const STATIC_DIR = join(ROOT, 'client', 'dist');
 
-const store = await Store.open(process.env.DATABASE_URL ?? join(ROOT, 'server', 'data', 'sciboom.db'));
+const store = await Store.open(process.env.DATABASE_URL ?? join(ROOT, 'server', 'data', 'sciboom.db')).catch((err: unknown) => {
+  console.error(explainDbError(err, process.env.DATABASE_URL));
+  process.exit(1);
+});
 const api = createApi(store, { teacherSignupCode: process.env.TEACHER_SIGNUP_CODE || undefined });
 
 const lobby = new Lobby({
