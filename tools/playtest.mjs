@@ -110,18 +110,40 @@ await page.mouse.click(640, 570);
 await wait(300);
 assert.equal(await battle(() => window.game.scene.getScene('Battle').controls.aimButtons[0].visible), false, 'aim buttons hidden');
 
-// Let go where it started: nothing is fired
-await page.mouse.move(700, 300);
+// Dragging empty space looks around the map (it doesn't aim)
+const scroll0 = await battle(() => window.game.scene.getScene('Battle').cameras.main.scrollX);
+await page.mouse.move(640, 300);
 await page.mouse.down();
-await page.mouse.move(708, 306, { steps: 2 });
+await page.mouse.move(900, 300, { steps: 6 });
+await page.mouse.up();
+await wait(100);
+const panned = await battle(() => {
+  const s = window.game.scene.getScene('Battle');
+  return { scroll: s.cameras.main.scrollX, phase: s.phase };
+});
+assert.equal(panned.phase, 'aiming', 'panning does not shoot');
+assert.ok(Math.abs(panned.scroll - scroll0) > 50 || scroll0 <= 1, `the view moved (${scroll0} -> ${panned.scroll})`);
+
+// The slingshot handle sits behind the shooter
+const handle = await battle(() => {
+  const s = window.game.scene.getScene('Battle');
+  return { x: s.dragHandle.x, y: s.dragHandle.y, visible: s.dragHandle.visible, facing: s.human.facing };
+});
+assert.ok(handle.visible, 'handle shown on a slingshot turn');
+assert.equal(handle.x < 640, handle.facing === 1, 'handle is on the side away from where the shooter faces');
+
+// Let go on the handle: nothing is fired
+await page.mouse.move(handle.x, handle.y);
+await page.mouse.down();
+await page.mouse.move(handle.x + 8, handle.y + 6, { steps: 2 });
 await page.mouse.up();
 await wait(200);
-assert.equal(await battle(() => window.game.scene.getScene('Battle').phase), 'aiming', 'tiny drag = cancelled');
+assert.equal(await battle(() => window.game.scene.getScene('Battle').phase), 'aiming', 'tiny pull = cancelled');
 
-// Pull back down-left: the shot goes up-right at about 40 degrees with about 77 power
-await page.mouse.move(700, 300);
+// Pull the handle back down-left: the shot goes up-right at about 40 degrees with about 92 power
+await page.mouse.move(handle.x, handle.y);
 await page.mouse.down();
-await page.mouse.move(560, 420, { steps: 8 });
+await page.mouse.move(handle.x - 140, handle.y + 120, { steps: 8 });
 await wait(300);
 const aim = await battle(() => {
   const s = window.game.scene.getScene('Battle');
@@ -130,11 +152,11 @@ const aim = await battle(() => {
 await shot('10-slingshot');
 assert.equal(aim.phase, 'charging');
 assert.ok(Math.abs(aim.angle - 40.6) < 2, `angle from the pull (${aim.angle})`);
-assert.ok(Math.abs(aim.power - 76.7) < 3, `power from the pull length (${aim.power})`);
+assert.ok(Math.abs(aim.power - 92.2) < 3, `power from the pull length (${aim.power})`);
 assert.equal(aim.facing, 1, 'pulled left = shoots right');
 await page.mouse.up();
 await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'flying', null, { timeout: 5000, polling: 50 });
-const fired = await battle(() => window.game.scene.getScene('Battle').combatants.find((c) => c.lastPower !== null && Math.abs(c.lastPower - 76.7) < 3) !== undefined);
+const fired = await battle(() => window.game.scene.getScene('Battle').combatants.find((c) => c.lastPower !== null && Math.abs(c.lastPower - 92.2) < 3) !== undefined);
 assert.ok(fired, 'fired with the slingshot power');
 
 console.log('state:', await battle(() => {

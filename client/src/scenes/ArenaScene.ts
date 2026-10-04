@@ -71,7 +71,15 @@ const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 const CHARGE_SPEED = 45;
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
 /** Slingshot: pulling back this far (px on screen) gives full power */
-const DRAG_FULL = 240;
+const DRAG_FULL = 200;
+/**
+ * Slingshot handle: behind the shooter (on the side away from where it
+ * shoots), so the hand pulling it never covers the other side. Screen px.
+ */
+// High up near the screen edge: clear of the fighters standing on the ground, with room to pull down and outwards
+const HANDLE_X = 210;
+const HANDLE_Y = 300;
+const HANDLE_R = 46;
 /** Let go closer than this to where you started and the shot is called off */
 const DRAG_CANCEL = 26;
 /** Furthest the camera zooms out: the whole map width fits on screen */
@@ -179,6 +187,8 @@ export abstract class ArenaScene extends Phaser.Scene {
   private camSorted = new WeakSet<Phaser.GameObjects.GameObject>();
   /** Slingshot aiming: where the finger/mouse went down, and the band drawn from there */
   private dragAim: { x: number; y: number; dist: number } | null = null;
+  /** The button to grab for the slingshot */
+  private dragHandle!: Phaser.GameObjects.Container;
   private dragView!: Phaser.GameObjects.Graphics;
   private dragLabel!: Phaser.GameObjects.Text;
   private zoomGoal = 1;
@@ -267,6 +277,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setDepth(DEPTH.hud + 5)
       .setVisible(false);
     this.dragAim = null;
+    this.dragHandle = this.makeDragHandle();
 
     const back = this.add
       .text(GAME_WIDTH / 2 + 150, 30, '☰ ออก', {
@@ -953,6 +964,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       this.skillBar.fadeIfCovering((f.x - view.x) * cam.zoom, (f.y - f.height - view.y) * cam.zoom, (f.y - view.y) * cam.zoom);
     }
     if (this.phase === 'flying' && this.playback) this.updatePlayback(dt);
+    this.updateDragHandle();
 
     const cam = this.cameras.main;
     const fit = this.fitGuide();
@@ -1128,7 +1140,9 @@ export abstract class ArenaScene extends Phaser.Scene {
     const shot = fly(launchState(input), flightOptions(mode, special, this.wind), this.terrain, [], f.id);
     const length = mode === 'ultimate' ? 4000 : aimGuideLength(this.assistLevel);
     const path = pathPrefix(shot.path, length);
-    this.guideBox = path.reduce(
+    // Zoom out to show where this shot is heading: the whole flight, not just the dots shown
+    // (stronger shot = longer flight = further out)
+    this.guideBox = shot.path.reduce(
       (b, p) => ({ minX: Math.min(b.minX, p.x), maxX: Math.max(b.maxX, p.x), minY: Math.min(b.minY, p.y) }),
       { minX: m.x, maxX: m.x, minY: m.y },
     );
@@ -1157,10 +1171,6 @@ export abstract class ArenaScene extends Phaser.Scene {
     let lastX = 0;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0 || this.phase === 'flying' || this.phase === 'quiz') return;
-      if (aimMode() === 'drag' && this.phase === 'aiming' && this.human) {
-        this.startDragAim(p);
-        return;
-      }
       this.panning = true;
       this.camTarget = null;
       lastX = p.x;
@@ -1185,8 +1195,41 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   // ---- Slingshot aiming ---------------------------------------------------------
 
+  /** Round "ลากยิง" button; shown on your turn when aiming with the slingshot */
+  private makeDragHandle(): Phaser.GameObjects.Container {
+    const g = this.add.graphics();
+    g.fillStyle(0x000000, 0.3).fillCircle(3, 5, HANDLE_R);
+    g.fillStyle(0xff8a1f, 0.92).fillCircle(0, 0, HANDLE_R);
+    g.fillStyle(0xffffff, 0.25).fillCircle(0, -HANDLE_R * 0.35, HANDLE_R * 0.6);
+    g.lineStyle(4, 0xffffff, 1).strokeCircle(0, 0, HANDLE_R);
+    g.lineStyle(3, 0x1b1d3a, 0.8).strokeCircle(0, 0, HANDLE_R + 3);
+    const label = this.add
+      .text(0, 2, 'ลากยิง', { fontFamily: FONT_FAMILY, fontSize: '22px', fontStyle: '700', color: '#ffffff', stroke: TEXT_STROKE, strokeThickness: 5, padding: { top: 6 } })
+      .setOrigin(0.5);
+    const c = this.add.container(HANDLE_X, HANDLE_Y, [g, label]).setScrollFactor(0).setDepth(DEPTH.hud).setSize(HANDLE_R * 2.4, HANDLE_R * 2.4);
+    c.setInteractive({ useHandCursor: true });
+    c.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.phase === 'aiming' && this.human && aimMode() === 'drag') this.startDragAim(p);
+    });
+    this.tweens.add({ targets: c, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    c.setVisible(false);
+    return c;
+  }
+
+  /** Show the handle on your slingshot turn, behind you (it swaps sides when you turn round) */
+  private updateDragHandle() {
+    const f = this.human;
+    const on = !!f && aimMode() === 'drag' && (this.phase === 'aiming' || (this.phase === 'charging' && !!this.dragAim));
+    this.dragHandle.setVisible(on);
+    if (this.dragHandle.input) this.dragHandle.input.enabled = on;
+    if (on && !this.dragAim) this.dragHandle.x = f.facing === 1 ? HANDLE_X : GAME_WIDTH - HANDLE_X;
+  }
+
   private startDragAim(p: Phaser.Input.Pointer) {
-    this.dragAim = { x: p.x, y: p.y, dist: 0 };
+    // Pull from the middle of the handle; the view follows the shooter again
+    this.dragAim = { x: this.dragHandle.x, y: this.dragHandle.y, dist: 0 };
+    this.panning = false;
+    if (this.human) this.camTarget = this.human;
     this.phase = 'charging';
     this.power = 0;
     this.chargeHum = sfx.chargePower();
