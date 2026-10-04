@@ -59,7 +59,9 @@ import { TerrainView } from '../game/TerrainView';
 import { Controls } from '../ui/Controls';
 import { Hud } from '../ui/Hud';
 import { SkillBar, type SlotState } from '../ui/SkillBar';
+import { addSettingsButton } from '../ui/SettingsPanel';
 import { addSoundToggle } from '../ui/SoundToggle';
+import { aimMode, onAimModeChange } from '../settings';
 import { addTextButton } from '../ui/TextButton';
 import { loadSave } from '../save';
 
@@ -68,6 +70,10 @@ const AIM_SPEED = 40; // degrees/s while holding ↑/↓
 // power/s while holding fire (0→100 in ~2.2 s, like DDTank); at 100 the bar runs back down, and so on until you let go
 const CHARGE_SPEED = 45;
 const GUIDE_DOT_GAP = 22; // px between dots of the aim guide
+/** Slingshot: pulling back this far (px on screen) gives full power */
+const DRAG_FULL = 240;
+/** Let go closer than this to where you started and the shot is called off */
+const DRAG_CANCEL = 26;
 /** Furthest the camera zooms out: the whole map width fits on screen */
 const MIN_ZOOM = GAME_WIDTH / WORLD_WIDTH;
 /** Space kept around the aim guide when zooming out to fit it (px on screen) */
@@ -171,6 +177,10 @@ export abstract class ArenaScene extends Phaser.Scene {
   private bgCam!: Phaser.Cameras.Scene2D.Camera;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
   private camSorted = new WeakSet<Phaser.GameObjects.GameObject>();
+  /** Slingshot aiming: where the finger/mouse went down, and the band drawn from there */
+  private dragAim: { x: number; y: number; dist: number } | null = null;
+  private dragView!: Phaser.GameObjects.Graphics;
+  private dragLabel!: Phaser.GameObjects.Text;
   private zoomGoal = 1;
   /** Where the aim guide reaches (world), to zoom out until it all fits */
   private guideBox: { minX: number; maxX: number; minY: number } | null = null;
@@ -245,6 +255,18 @@ export abstract class ArenaScene extends Phaser.Scene {
     };
     this.skillBar = new SkillBar(this);
     this.skillBar.onPick = (slot) => this.pickSkill(slot);
+    // Buttons or slingshot (chosen in the settings; switching applies at once)
+    this.controls.setAimButtons(aimMode() === 'buttons');
+    const offAim = onAimModeChange((m) => this.controls.setAimButtons(m === 'buttons'));
+    this.events.once('shutdown', offAim);
+    this.dragView = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.hud + 5);
+    this.dragLabel = this.add
+      .text(0, 0, '', { fontFamily: FONT_FAMILY, fontSize: '22px', fontStyle: '700', color: '#ffffff', stroke: TEXT_STROKE, strokeThickness: 5, padding: { top: 6 } })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.hud + 5)
+      .setVisible(false);
+    this.dragAim = null;
 
     const back = this.add
       .text(GAME_WIDTH / 2 + 150, 30, '☰ ออก', {
@@ -260,6 +282,7 @@ export abstract class ArenaScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     back.on('pointerup', () => this.leave(menuScene));
     addSoundToggle(this, GAME_WIDTH / 2 + 245, 30, 32);
+    addSettingsButton(this, GAME_WIDTH / 2 + 112, 30, 32);
     startMusic(this.musicTrack());
     const amb = this.ambienceKind();
     if (amb) startAmbience(amb);
@@ -390,6 +413,7 @@ export abstract class ArenaScene extends Phaser.Scene {
 
   /** End the human's input: with a power to shoot, or null if the turn is lost */
   protected finishHuman(power: number | null) {
+    this.endDragView();
     this.hud.clearCountdown();
     this.chargeHum?.stop();
     this.chargeHum = null;
@@ -1023,14 +1047,17 @@ export abstract class ArenaScene extends Phaser.Scene {
     this.lastTick = sec;
 
     if (this.phase === 'charging') {
-      // Up to 100, back down to 0, up again… until released (or the time runs out)
-      this.power += this.chargeDir * CHARGE_SPEED * dt;
-      if (this.power >= 100) {
-        this.power = 200 - this.power;
-        this.chargeDir = -1;
-      } else if (this.power <= 0) {
-        this.power = -this.power;
-        this.chargeDir = 1;
+      // Up to 100, back down to 0, up again… until released (or the time runs out).
+      // With the slingshot the power is how far you pulled instead.
+      if (!this.dragAim) {
+        this.power += this.chargeDir * CHARGE_SPEED * dt;
+        if (this.power >= 100) {
+          this.power = 200 - this.power;
+          this.chargeDir = -1;
+        } else if (this.power <= 0) {
+          this.power = -this.power;
+          this.chargeDir = 1;
+        }
       }
       this.chargeHum?.set(this.power / 100);
       this.hud.setPower(this.power, f.lastPower);
@@ -1130,16 +1157,106 @@ export abstract class ArenaScene extends Phaser.Scene {
     let lastX = 0;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0 || this.phase === 'flying' || this.phase === 'quiz') return;
+      if (aimMode() === 'drag' && this.phase === 'aiming' && this.human) {
+        this.startDragAim(p);
+        return;
+      }
       this.panning = true;
       this.camTarget = null;
       lastX = p.x;
       this.cameras.main.stopFollow();
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.dragAim) {
+        this.moveDragAim(p);
+        return;
+      }
       if (!this.panning || !p.isDown) return;
       this.cameras.main.scrollX -= (p.x - lastX) / this.cameras.main.zoom;
       lastX = p.x;
     });
-    this.input.on('pointerup', () => (this.panning = false));
+    const up = (p: Phaser.Input.Pointer) => {
+      if (this.dragAim) this.releaseDragAim(p);
+      this.panning = false;
+    };
+    this.input.on('pointerup', up);
+    this.input.on('pointerupoutside', up);
+  }
+
+  // ---- Slingshot aiming ---------------------------------------------------------
+
+  private startDragAim(p: Phaser.Input.Pointer) {
+    this.dragAim = { x: p.x, y: p.y, dist: 0 };
+    this.phase = 'charging';
+    this.power = 0;
+    this.chargeHum = sfx.chargePower();
+    this.moveDragAim(p);
+  }
+
+  /** Pull back: the shot goes the opposite way; the further you pull, the stronger */
+  private moveDragAim(p: Phaser.Input.Pointer) {
+    const d = this.dragAim;
+    const f = this.human;
+    if (!d || !f) return;
+    const dx = d.x - p.x;
+    const dy = d.y - p.y;
+    d.dist = Math.hypot(dx, dy);
+    const live = d.dist >= DRAG_CANCEL;
+    if (live) {
+      if (Math.abs(dx) > 6) f.facing = dx > 0 ? 1 : -1;
+      f.angle = Phaser.Math.Clamp(Phaser.Math.RadToDeg(Math.atan2(-dy, Math.abs(dx))), 0, 90);
+      f.sync();
+      this.hud.setAngle(f.angle);
+      this.power = Phaser.Math.Clamp((d.dist / DRAG_FULL) * 100, 0, 100);
+      this.onHumanMoved(f);
+    } else {
+      this.power = 0;
+    }
+    this.hud.setPower(this.power, f.lastPower);
+    this.chargeHum?.set(this.power / 100);
+    this.drawDragView(p.x, p.y, live);
+  }
+
+  private releaseDragAim(p: Phaser.Input.Pointer) {
+    this.moveDragAim(p);
+    const d = this.dragAim!;
+    if (d.dist < DRAG_CANCEL) {
+      // Let go where it started: no shot, aim again
+      this.endDragView();
+      this.chargeHum?.stop();
+      this.chargeHum = null;
+      this.phase = 'aiming';
+      this.power = 0;
+      this.hud.setPower(0, this.human?.lastPower ?? null);
+      return;
+    }
+    this.finishHuman(this.power);
+  }
+
+  /** The rubber band from where you touched to your finger, with the power and angle */
+  private drawDragView(x: number, y: number, live: boolean) {
+    const d = this.dragAim!;
+    const g = this.dragView;
+    g.clear();
+    const strong = this.power / 100;
+    const color = live ? Phaser.Display.Color.GetColor(255, Math.round(220 - 140 * strong), 60) : 0x9aa0b8;
+    g.lineStyle(10, 0x1b1d3a, 0.55).lineBetween(d.x, d.y, x, y);
+    g.lineStyle(6, color, 0.95).lineBetween(d.x, d.y, x, y);
+    g.fillStyle(0x1b1d3a, 0.6).fillCircle(d.x, d.y, 16);
+    g.lineStyle(3, 0xffffff, 0.9).strokeCircle(d.x, d.y, DRAG_CANCEL);
+    g.fillStyle(color, 1).fillCircle(x, y, 12);
+    g.lineStyle(3, 0x1b1d3a, 1).strokeCircle(x, y, 12);
+    const f = this.human;
+    this.dragLabel
+      .setVisible(true)
+      .setPosition(Phaser.Math.Clamp(x, 120, GAME_WIDTH - 120), Phaser.Math.Clamp(y - 44, 150, GAME_HEIGHT - 40))
+      .setText(live && f ? `แรง ${Math.round(this.power)} · มุม ${Math.round(f.angle)}°` : 'ปล่อยตรงนี้ = ยกเลิก')
+      .setColor(live ? '#ffffff' : '#cccccc');
+  }
+
+  private endDragView() {
+    this.dragAim = null;
+    this.dragView?.clear();
+    this.dragLabel?.setVisible(false);
   }
 }

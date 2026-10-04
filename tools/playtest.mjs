@@ -98,6 +98,45 @@ assert.ok(powers.indexOf(top) > 15, 'slower charging: about 2 s to the top');
 await shot('8-power-coming-back');
 await page.keyboard.up('Space');
 
+// Settings: switch to the slingshot (gear button next to "ออก", then the slingshot card, then close)
+await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'aiming', null, { timeout: 30000, polling: 100 });
+await page.mouse.click(752, 30);
+await wait(400);
+await shot('9-settings');
+await page.mouse.click(830, 320);
+await wait(200);
+assert.equal(await battle(() => localStorage.getItem('sciboom.aim')), 'drag', 'slingshot chosen in the settings');
+await page.mouse.click(640, 570);
+await wait(300);
+assert.equal(await battle(() => window.game.scene.getScene('Battle').controls.aimButtons[0].visible), false, 'aim buttons hidden');
+
+// Let go where it started: nothing is fired
+await page.mouse.move(700, 300);
+await page.mouse.down();
+await page.mouse.move(708, 306, { steps: 2 });
+await page.mouse.up();
+await wait(200);
+assert.equal(await battle(() => window.game.scene.getScene('Battle').phase), 'aiming', 'tiny drag = cancelled');
+
+// Pull back down-left: the shot goes up-right at about 40 degrees with about 77 power
+await page.mouse.move(700, 300);
+await page.mouse.down();
+await page.mouse.move(560, 420, { steps: 8 });
+await wait(300);
+const aim = await battle(() => {
+  const s = window.game.scene.getScene('Battle');
+  return { phase: s.phase, power: s.power, angle: s.human.angle, facing: s.human.facing };
+});
+await shot('10-slingshot');
+assert.equal(aim.phase, 'charging');
+assert.ok(Math.abs(aim.angle - 40.6) < 2, `angle from the pull (${aim.angle})`);
+assert.ok(Math.abs(aim.power - 76.7) < 3, `power from the pull length (${aim.power})`);
+assert.equal(aim.facing, 1, 'pulled left = shoots right');
+await page.mouse.up();
+await page.waitForFunction(() => window.game.scene.getScene('Battle').phase === 'flying', null, { timeout: 5000, polling: 50 });
+const fired = await battle(() => window.game.scene.getScene('Battle').combatants.find((c) => c.lastPower !== null && Math.abs(c.lastPower - 76.7) < 3) !== undefined);
+assert.ok(fired, 'fired with the slingshot power');
+
 console.log('state:', await battle(() => {
   const s = window.game.scene.getScene('Battle');
   return s.combatants.map((f) => `${f.name} hp=${f.hp} alive=${f.alive}`).join(' | ');

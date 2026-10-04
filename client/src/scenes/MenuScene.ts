@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { startMusic } from '../audio/Sound';
 import { FONT_FAMILY, GAME_WIDTH, TEXT_STROKE } from '../config';
+import { addSettingsButton } from '../ui/SettingsPanel';
 import { addSoundToggle } from '../ui/SoundToggle';
 import { addTextButton } from '../ui/TextButton';
 import { drawArtBackground } from '../game/background';
@@ -57,6 +58,7 @@ export class MenuScene extends Phaser.Scene {
     }
     this.accountBox();
     addSoundToggle(this, GAME_WIDTH - 44, 40, 44);
+    addSettingsButton(this, GAME_WIDTH - 104, 40, 44);
     // Small link for teachers (opens the teacher pages in a new tab)
     const forTeachers = this.add
       .text(GAME_WIDTH - 16, 712, 'สำหรับครู', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#ffffff', stroke: TEXT_STROKE, strokeThickness: 4 })

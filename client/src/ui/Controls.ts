@@ -14,6 +14,8 @@ export class Controls {
   private readonly held = { left: false, right: false, up: false, down: false };
   private readonly keys: Record<string, Phaser.Input.Keyboard.Key>;
   private fireHeld = false;
+  /** ↑ ↓ and fire buttons: hidden when aiming with the slingshot (walking buttons stay) */
+  private readonly aimButtons: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
 
   constructor(private readonly scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
@@ -24,9 +26,20 @@ export class Controls {
     const y = GAME_HEIGHT - 70;
     this.holdButton(80, y, 180, 'left');
     this.holdButton(80 + BTN + 14, y, 0, 'right');
-    this.holdButton(GAME_WIDTH - 330, y, -90, 'up');
-    this.holdButton(GAME_WIDTH - 230, y, 90, 'down');
-    this.fireButton(GAME_WIDTH - 95, y - 10);
+    this.aimButtons.push(this.holdButton(GAME_WIDTH - 330, y, -90, 'up'), this.holdButton(GAME_WIDTH - 230, y, 90, 'down'));
+    this.aimButtons.push(...this.fireButton(GAME_WIDTH - 95, y - 10));
+  }
+
+  /** Show or hide the aim (↑ ↓) and fire buttons; the keyboard keeps working either way */
+  setAimButtons(on: boolean) {
+    for (const o of this.aimButtons) {
+      o.setVisible(on);
+      if (o.input) o.input.enabled = on;
+    }
+    if (!on) {
+      this.held.up = this.held.down = false;
+      this.releaseFire();
+    }
   }
 
   /** -1 left, 1 right, 0 none */
@@ -71,13 +84,14 @@ export class Controls {
     img.on('pointerdown', press);
     img.on('pointerup', release);
     img.on('pointerout', release);
+    return img;
   }
 
-  private fireButton(x: number, y: number) {
+  private fireButton(x: number, y: number): [Phaser.GameObjects.Image, Phaser.GameObjects.Text] {
     const img = this.scene.add.image(x, y, 'ui/btn_fire').setScrollFactor(0).setDepth(DEPTH.hud);
     img.setScale(150 / img.width);
     const base = img.scale;
-    this.scene.add
+    const label = this.scene.add
       .text(x, y - 8, 'ยิง!', {
         fontFamily: FONT_FAMILY,
         fontSize: '34px',
@@ -100,5 +114,6 @@ export class Controls {
     };
     img.on('pointerup', release);
     img.on('pointerout', release);
+    return [img, label];
   }
 }
